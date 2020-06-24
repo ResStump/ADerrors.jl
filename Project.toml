@@ -1,0 +1,10 @@
+name = "ADerrors"
+uuid = "5e92007d-7bf1-471c-8ceb-4591b8b567a9"
+authors = ["Alberto Ramos <alberto.ramos@ific.uv.es>"]
+version = "0.1.0"
+
+[deps]
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
