@@ -56,10 +56,10 @@ function bin_data(vin::Array{Float64, 1}, nbin::Int64)
     return vout
 end
 
-function uwcls(data::Vector{Float64}, id::Int64, ws::wspace)
+function uwcls(data::Vector{Float64}, id::Int64, ws::wspace, iv::Vector{Int64})
     if (length(data) == 2)
         ws.nob += 1
-        new  = fbd(1, 1, [data[2]], [1], [1], [1], Dict{Int64,Vector{Complex{Float64}}}())
+        new  = fbd(1, 1, [data[2]], [1], Dict{Int64,Vector{Complex{Float64}}}())
         push!(ws.fluc, new)
         push!(ws.map_nob, id)
         if (!haskey(ws.map_ids, id))
@@ -73,6 +73,9 @@ function uwcls(data::Vector{Float64}, id::Int64, ws::wspace)
         return uwreal(data[1], 0.0, 0.0,
                       p, d, Vector{Int64}(), Vector{cfdata}())
     else
+        if (sum(iv) != length(data))
+            ArgumentError("Sum of replica length does not match number of measurements")
+        end
         ws.nob += 1
         avg = Statistics.mean(data)
         push!(ws.map_nob, id)
@@ -81,16 +84,20 @@ function uwcls(data::Vector{Float64}, id::Int64, ws::wspace)
         end
 
         fseries = Dict{Int64,Vector{Complex{Float64}}}()
-        nbin = get_nbin_vec([length(data)])
-        nbdt = div(length(data), nbin)
-        datapad = [bin_data(data .- avg, nbin);
-                   zeros(Float64, nextpow(2,2*nbdt+1)-nbdt) ]
-        fseries[1] = FFTW.fft(datapad)
+        nbin = get_nbin_vec(iv)
+        is = 1
+        for i in 1:length(iv)
+            ie = is + iv[i] - 1
+            nbdt = div(iv[i], nbin)
+            datapad = [bin_data(data[is:ie] .- avg, nbin);
+                       zeros(Float64, nextpow(2,2*nbdt+1)-nbdt) ]
+            fseries[i] = FFTW.fft(datapad)
+            is = ie + 1
+        end
 
         new = fbd(length(data), nbin,
                   data .- avg,
-                  [length(data)],
-                  [1], [length(data)],
+                  iv,
                   fseries)
         push!(ws.fluc, new)
         
@@ -104,6 +111,53 @@ function uwcls(data::Vector{Float64}, id::Int64, ws::wspace)
     end
 end
 
+function uwcls_gaps(data::Vector{Float64},
+                    id::Int64, ws::wspace,
+                    iv::Vector{Int64},
+                    idm::Vector{Int64},
+                    nms::Int64)
+    if (nms < 4)
+        ArgumentError("MC data length has to be larger than 4")
+    end
+
+    avg = Statistics.mean(data)
+    dt = fill(avg, nms)
+    for n in 1:length(idm)
+        dt[idm[n]] = data[n] - avg
+    end
+    dt .= (nms/length(idm)) .* dt
+    
+    ws.nob += 1
+    push!(ws.map_nob, id)
+    if (!haskey(ws.map_ids, id))
+        ws.map_ids[id] = ws.nob
+    end
+
+    fseries = Dict{Int64,Vector{Complex{Float64}}}()
+    nbin = get_nbin_vec(iv)
+    is = 1
+    for i in 1:length(iv)
+        ie = is + iv[i] - 1
+        nbdt = div(iv[i], nbin)
+        datapad = [bin_data(dt[is:ie], nbin);
+                   zeros(Float64, nextpow(2,2*nbdt+1)-nbdt) ]
+        fseries[i] = FFTW.fft(datapad)
+        is = ie + 1
+    end
+
+    new = fbd(nms, nbin,
+              dt,
+              iv,
+              fseries)
+    push!(ws.fluc, new)
+
+    p = [false for n in 1:ws.nob]
+    p[end] = true
+    d = [0.0 for n in 1:ws.nob]
+    d[end] = 1.0
+    return uwreal(avg, 0.0, 0.0,
+                  p, d, Vector{Int64}(), Vector{cfdata}())
+end
 
 function unique_ids!(a::uwreal, ws::wspace)
 
@@ -184,8 +238,8 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                     ftemp[k] .= ftemp[k].*conj(ftemp[k])
                     FFTW.ifft!(ftemp[k])
 
-                    for ig in 1:nt
-                        new.gamm[ig] = real(ftemp[k][ig])
+                    for ig in 1:min(nt,length(ftemp[k]))
+                        new.gamm[ig] = new.gamm[ig] + real(ftemp[k][ig])
                     end
                 end
                     for ig in 1:nt
@@ -237,8 +291,9 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
         idx = ws.map_ids[a.ids[j]]
         if (ws.fluc[idx].nd == 1)
             a.cfd[j].taui  = 0.5
-            a.cfd[k].dtuai = 0.0
+            a.cfd[j].dtaui = 0.0
             vti = 0.0
+            iw  = 0
         else
             ibn     = ws.fluc[idx].ibn
             nd_eff  = div(ws.fluc[idx].nd, ibn)
@@ -248,6 +303,7 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                 a.cfd[j].taui  = 0.0
                 a.cfd[j].dtaui = 0.0
                 vti = 0.0
+                iw  = 0
             else
                 wp = zeros(4)
                 wp = get(wpm, a.ids[j], [-1.0,-1.0,-1.0,-1.0])
@@ -291,6 +347,102 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
     a.derr = sqrt(a.derr)
 end
 
+function unique_ids_multi(a::Vector{uwreal})
+
+    is = 0
+    for i in 1:length(a)
+        is = is + unique_ids!(a)
+    end
+
+    n = 0
+    ids = Vector{Int64}()
+    for k in 1:length(a)
+        for i in 1:length(a[k].prop)
+            if (a[k].prop[i])
+                if (any(a.ids[1:end] == ws.map_nob[i]))
+                    continue
+                end
+                n = n + 1
+                push!(ids, map_nob[i])
+            end
+        end
+    end
+
+    return ids
+end
+
+
+function cov(a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
+
+    for i in 1:length(a)
+        uwerr(a, wpm)
+    end
+    ids = unique_ids_multi(a)
+    nid = length(ids)
+    iw  = zeros(Int64, nid)
+
+    for k in 1:length(a)
+        for j in 1:length(a[k].ids)
+            for i in 1:nid
+                if (a[k].ids[j] == ids[j])
+                    iw[i] = max(iw[i], a[k].cfd[j].iw)
+                end
+            end
+        end
+    end
+
+    wopt = Dict{Int64,Vector{Float64}}()
+    for i in 1:nid
+        wopt[ids[i]] = [convert(Float64, iw[i]), -1.0, -1.0, -1.0]
+    end
+
+    cov = zeros(Float64, length(a), length(a))
+    for k in 1:length(a)
+        uwerr(a[k], wopt)
+        cov[k,k] = a[k].err^2
+    end
+
+    for j in 1:nid
+        idx  = ws.map_ids[a.ids[j]]
+        nd   = ws.fluc[idx].nd
+        nrep = length(ws.fluc[idx].ivrep)
+        for k1 in 1:length(a)-1
+            v1 = 0.0
+            for i in 1:length(a[k1].prop)
+                if (a[k1].prop[i] && (ws.map_nob[i] == ids[j]))
+                    if (nd == 1)
+                        v1 = v1 + a[k1].der[i]*ws.fluc[i].delta[1]
+                    else
+                        # AQUI
+                    end
+                end
+            end
+            for k2 in k1+1:length(a)
+                v2 = 0.0
+                for i in 1:length(a[k2].prop)
+                    if (a[k2].prop[i] && (ws.map_nob[i] == ids[j]))
+                        if (nd == 1)
+                            v2 = v2 + a[k2].der[i]*ws.fluc[i].delta[1]
+                        end
+                    end
+                end
+            end
+
+            if (nd == 1)
+                cov[k1,k2] = cov[k1,k2] + v1*v2
+            end
+        end
+    end
+    
+    
+end
+
+
+##                                         ##
+# Module workspace and function definitions #
+##                                         ##
+
+
 wsg = ADerrors.wspace(similar(Vector{ADerrors.fbd}, 0),
                 0,
                 similar(Vector{Int64}, 0),
@@ -298,7 +450,10 @@ wsg = ADerrors.wspace(similar(Vector{ADerrors.fbd}, 0),
 
 empt = Dict{Int64,Vector{Float64}}()
 
-uwreal(data::Vector{Float64}, id::Int64) = ADerrors.uwcls(data::Vector{Float64}, id::Int64, wsg)
+uwreal(data::Vector{Float64}, id::Int64) = ADerrors.uwcls(data::Vector{Float64}, id::Int64, wsg, [length(data)])
+uwreal(data::Vector{Float64}, id::Int64, iv::Vector{Int64}) = ADerrors.uwcls(data::Vector{Float64}, id::Int64, wsg, iv)
+
 uwerr(a::uwreal) = ADerrors.uwerror(a::uwreal, wsg, empt)
 uwerr(a::uwreal, wpm::Dict{Int64,Vector{Float64}}) = ADerrors.uwerror(a::uwreal, wsg, wpm::Dict{Int64,Vector{Float64}})
 neid(a::uwreal)  = ADerrors.unique_ids!(a::uwreal, wsg)
+

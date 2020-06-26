@@ -40,8 +40,6 @@ mutable struct fbd
     
     delta::Array{Float64, 1}
     ivrep::Array{Int64, 1}
-    is::Array{Int64, 1}
-    ie::Array{Int64, 1}
     fourier::Dict{Int64,Vector{Complex{Float64}}}
 end
 
@@ -60,3 +58,11 @@ uwreal(v::Float64, n::Int) = uwreal(v, 0.0, 0.0,
 uwreal(v::Float64, prop::Vector{Bool}, der::Vector{Float64}) = uwreal(v, 0.0, 0.0,
                                     prop, der,
                                     Vector{Int64}(), Vector{cfdata}())
+
+function Base.show(io::IO, a::uwreal)
+    if (length(a.cfd) > 0) 
+        print(a.mean, " +/- ", a.err)
+    else
+        print(a.mean, " (Error not available... maybe run uwerr)")
+    end
+end
