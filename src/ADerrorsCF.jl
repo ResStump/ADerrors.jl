@@ -56,28 +56,23 @@ function bin_data(vin::Array{Float64, 1}, nbin::Int64)
     return vout
 end
 
-function uwcls(data::Vector{Float64}, id::Int64, ws::wspace, iv::Vector{Int64})
-    if (length(data) == 2)
+function add_DB(delta::Vector{Float64}, id::Int64, iv::Vector{Int64}, ws::wspace)
+
+
+    nd = length(delta)
+    if (nd == 1)
         ws.nob += 1
-        new  = fbd(1, 1, [data[2]], [1], Dict{Int64,Vector{Complex{Float64}}}())
+        new  = fbd(1, 1, delta, [1], Dict{Int64,Vector{Complex{Float64}}}())
         push!(ws.fluc, new)
         push!(ws.map_nob, id)
         if (!haskey(ws.map_ids, id))
             ws.map_ids[id] = ws.nob
         end
-        
-        p = [false for n in 1:ws.nob]
-        p[end] = true
-        d = [0.0 for n in 1:ws.nob]
-        d[end] = 1.0
-        return uwreal(data[1], 0.0, 0.0,
-                      p, d, Vector{Int64}(), Vector{cfdata}())
     else
-        if (sum(iv) != length(data))
+        if (sum(iv) != length(delta))
             ArgumentError("Sum of replica length does not match number of measurements")
         end
         ws.nob += 1
-        avg = Statistics.mean(data)
         push!(ws.map_nob, id)
         if (!haskey(ws.map_ids, id))
             ws.map_ids[id] = ws.nob
@@ -89,18 +84,36 @@ function uwcls(data::Vector{Float64}, id::Int64, ws::wspace, iv::Vector{Int64})
         for i in 1:length(iv)
             ie = is + iv[i] - 1
             nbdt = div(iv[i], nbin)
-            datapad = [bin_data(data[is:ie] .- avg, nbin);
+            datapad = [bin_data(delta[is:ie], nbin);
                        zeros(Float64, nextpow(2,2*nbdt+1)-nbdt) ]
             fseries[i] = FFTW.fft(datapad)
             is = ie + 1
         end
 
-        new = fbd(length(data), nbin,
-                  data .- avg,
+        new = fbd(length(delta), nbin,
+                  delta,
                   iv,
                   fseries)
         push!(ws.fluc, new)
+
+    end
+
+end
+
+function uwcls(data::Vector{Float64}, id::Int64, ws::wspace, iv::Vector{Int64})
+    if (length(data) == 2)
+        add_DB([data[2]], id, Vector{Int64}(), ws)
         
+        p = [false for n in 1:ws.nob]
+        p[end] = true
+        d = [0.0 for n in 1:ws.nob]
+        d[end] = 1.0
+        return uwreal(data[1], 0.0, 0.0,
+                      p, d, Vector{Int64}(), Vector{cfdata}())
+    else
+        avg = Statistics.mean(data)
+        add_DB(data .- avg, id, iv, ws)
+
         p = [false for n in 1:ws.nob]
         p[end] = true
         d = [0.0 for n in 1:ws.nob]
@@ -119,37 +132,18 @@ function uwcls_gaps(data::Vector{Float64},
     if (nms < 4)
         ArgumentError("MC data length has to be larger than 4")
     end
+    if (sum(iv) != nms)
+        ArgumentError("Sum of replica length does not match number of measurements")
+    end
 
     avg = Statistics.mean(data)
-    dt = fill(avg, nms)
+    dt  = zeros(Float64, nms)
     for n in 1:length(idm)
         dt[idm[n]] = data[n] - avg
     end
     dt .= (nms/length(idm)) .* dt
     
-    ws.nob += 1
-    push!(ws.map_nob, id)
-    if (!haskey(ws.map_ids, id))
-        ws.map_ids[id] = ws.nob
-    end
-
-    fseries = Dict{Int64,Vector{Complex{Float64}}}()
-    nbin = get_nbin_vec(iv)
-    is = 1
-    for i in 1:length(iv)
-        ie = is + iv[i] - 1
-        nbdt = div(iv[i], nbin)
-        datapad = [bin_data(dt[is:ie], nbin);
-                   zeros(Float64, nextpow(2,2*nbdt+1)-nbdt) ]
-        fseries[i] = FFTW.fft(datapad)
-        is = ie + 1
-    end
-
-    new = fbd(nms, nbin,
-              dt,
-              iv,
-              fseries)
-    push!(ws.fluc, new)
+    add_DB(dt, id, iv, ws)
 
     p = [false for n in 1:ws.nob]
     p[end] = true
@@ -164,7 +158,7 @@ function unique_ids!(a::uwreal, ws::wspace)
     if (length(a.ids) == 0)
         for i in 1:length(a.prop)
             if (a.prop[i])
-                if (any(a.ids[1:end] == ws.map_nob[i]))
+                if (any(a.ids[1:end] .== ws.map_nob[i]))
                     continue
                 end
                 push!(a.ids, ws.map_nob[i])
@@ -242,7 +236,7 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                         new.gamm[ig] = new.gamm[ig] + real(ftemp[k][ig])
                     end
                 end
-                    for ig in 1:nt
+                for ig in 1:nt
                     nrcnt = count(map(x -> div(x, 2*ws.fluc[idx].ibn), ws.fluc[idx].ivrep) .> ig-1)
                     new.gamm[ig] = new.gamm[ig] / (nd_eff - nrcnt*(ig-1))
                 end
@@ -345,13 +339,15 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
     
     a.err  = sqrt(a.err)
     a.derr = sqrt(a.derr)
+
+    return a.err
 end
 
-function unique_ids_multi(a::Vector{uwreal})
+function unique_ids_multi(a::Vector{uwreal}, ws::wspace)
 
     is = 0
     for i in 1:length(a)
-        is = is + unique_ids!(a)
+        is = is + unique_ids!(a[i], ws)
     end
 
     n = 0
@@ -359,11 +355,11 @@ function unique_ids_multi(a::Vector{uwreal})
     for k in 1:length(a)
         for i in 1:length(a[k].prop)
             if (a[k].prop[i])
-                if (any(a.ids[1:end] == ws.map_nob[i]))
+                if (any(ids[1:end] .== ws.map_nob[i]))
                     continue
                 end
                 n = n + 1
-                push!(ids, map_nob[i])
+                push!(ids, ws.map_nob[i])
             end
         end
     end
@@ -375,9 +371,9 @@ end
 function cov(a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
 
     for i in 1:length(a)
-        uwerr(a, wpm)
+        ADerrors.uwerror(a[i], ws, wpm)
     end
-    ids = unique_ids_multi(a)
+    ids = unique_ids_multi(a, ws)
     nid = length(ids)
     iw  = zeros(Int64, nid)
 
@@ -393,19 +389,34 @@ function cov(a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
 
     wopt = Dict{Int64,Vector{Float64}}()
     for i in 1:nid
-        wopt[ids[i]] = [convert(Float64, iw[i]), -1.0, -1.0, -1.0]
+        wopt[ids[i]] = [Base.convert(Float64, iw[i]), -1.0, -1.0, -1.0]
     end
-
+    
     cov = zeros(Float64, length(a), length(a))
     for k in 1:length(a)
-        uwerr(a[k], wopt)
+        ADerrors.uwerror(a[k], ws, wopt)
         cov[k,k] = a[k].err^2
     end
-
+    
     for j in 1:nid
-        idx  = ws.map_ids[a.ids[j]]
+        idx  = ws.map_ids[ids[j]]
         nd   = ws.fluc[idx].nd
-        nrep = length(ws.fluc[idx].ivrep)
+        if (nd != 1)
+            nd_eff = div(nd, ws.fluc[idx].ibn)
+            (nt,ip) = findmax(ws.fluc[idx].ivrep)
+            nt = div(nt, 2*ws.fluc[idx].ibn)
+            nrep = length(ws.fluc[idx].ivrep)
+            
+            ftemp1 = Dict{Int64,Vector{Complex{Float64}}}()
+            ftemp2 = Dict{Int64,Vector{Complex{Float64}}}()
+            for i in 1:nrep
+                ns = length(ws.fluc[idx].fourier[i])
+                ftemp1[i] = zeros(Complex{Float64}, ns)
+                ftemp2[i] = zeros(Complex{Float64}, ns)
+            end
+
+            gamm = zeros(Float64, nt)
+        end
         for k1 in 1:length(a)-1
             v1 = 0.0
             for i in 1:length(a[k1].prop)
@@ -413,7 +424,9 @@ function cov(a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                     if (nd == 1)
                         v1 = v1 + a[k1].der[i]*ws.fluc[i].delta[1]
                     else
-                        # AQUI
+                        for k in 1:nrep
+                            ftemp1[k] = ftemp1[k] + a[k1].der[i]*ws.fluc[i].fourier[k]
+                        end
                     end
                 end
             end
@@ -423,20 +436,155 @@ function cov(a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                     if (a[k2].prop[i] && (ws.map_nob[i] == ids[j]))
                         if (nd == 1)
                             v2 = v2 + a[k2].der[i]*ws.fluc[i].delta[1]
+                        else
+                            for k in 1:nrep
+                                ftemp2[k] = ftemp2[k] + a[k2].der[i]*ws.fluc[i].fourier[k]
+                            end
                         end
                     end
                 end
-            end
 
-            if (nd == 1)
-                cov[k1,k2] = cov[k1,k2] + v1*v2
+                if (nd == 1)
+                    cov[k1,k2] = cov[k1,k2] + v1*v2
+                else
+                    for k in 1:nrep
+                        ftemp2[k] .= ftemp1[k].*conj(ftemp2[k])
+                        FFTW.ifft!(ftemp2[k])
+                        
+                        for ig in 1:min(nt,length(ftemp2[k]))
+                            gamm[ig] = gamm[ig] + real(ftemp2[k][ig])
+                        end
+                    end
+
+                    for ig in 1:nt
+                        nrcnt = count(map(x -> div(x, 2*ws.fluc[idx].ibn), ws.fluc[idx].ivrep) .> ig-1)
+                        gamm[ig] = gamm[ig] / (nd_eff - nrcnt*(ig-1))
+                    end
+                    
+                    dbias = gamm[1] + 2.0*sum(gamm[2:iw[j]])
+                    gamm .= gamm .+ dbias/nd_eff
+
+                    cov[k1,k2] = cov[k1, k2] + ( gamm[1] + 2.0*sum(gamm[2:iw[j]]) )/nd_eff
+                
+                    for i in 1:nrep
+                        for l in 1:length(ws.fluc[idx].fourier[i])
+                            ftemp2[i][l] = Base.convert(Complex{Float64}, 0.0)
+                        end
+                    end
+                    for i in 1:nt
+                        gamm[i] = 0.0
+                    end
+                end
+            end
+            
+            if (nd > 1)
+                for i in 1:nrep
+                    for l in 1:length(ws.fluc[idx].fourier[i])
+                        ftemp1[i][l] = Base.convert(Complex{Float64}, 0.0)
+                    end
+                end
+            end
+        end
+    end
+
+    for k1 in 1:length(a)-1
+        for k2 in k1+1:length(a)
+            cov[k2,k1] = cov[k1,k2]
+        end
+    end
+    
+    return cov
+end
+
+function trcov(M, a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
+
+    usvt = LinearAlgebra.svd(M)
+    n    = length(a)
+
+    p = similar(a)
+    for i in 1:n
+        p[i] = a[1]*usvt.U[1,i]
+        for j in 2:n
+            p[i] = p[i] + a[j]*usvt.U[j,i]
+        end
+        ADerrors.uwerror(p[i], ws, wpm)
+    end
+
+    ids = unique_ids_multi(a, ws)
+    iw = zeros(Int64, length(ids))
+    for k in 1:n
+        for j in 1:length(p[k].ids)
+            for i in 1:length(ids)
+                if (p[k].ids[j] == ids[i])
+                    iw[i] = max(iw[i], p[k].cfd[j].iw)
+                end
             end
         end
     end
     
-    
+    wopt = Dict{Int64,Vector{Float64}}()
+    for i in 1:length(ids)
+        wopt[ids[i]] = [Base.convert(Float64, iw[i]), -1.0, -1.0, -1.0]
+    end
+
+    tr = 0.0
+    for k in 1:n
+        ADerrors.uwerror(p[k], ws, wopt)
+        tr = tr + usvt.S[k]*p[k].err^2
+    end
+
+    return tr
 end
 
+function trcorr(M, a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64}}, W::Vector{Float64})
+
+    usvt = LinearAlgebra.svd(M)
+    n    = length(a)
+
+    Ww = zeros(Float64, length(a))
+    if (length(W) == 0)
+        for i in 1:length(a)
+            ADerrors.uwerror(a[i], ws, wpm)
+            Ww[i] = a[i].err
+        end
+    else
+        Ww .= W
+    end
+    
+    p = similar(a)
+    for i in 1:n
+        p[i] = a[1]*usvt.U[1,i]/Ww[1]
+        for j in 2:n
+            p[i] = p[i] + a[j]*usvt.U[j,i]/Ww[j]
+        end
+        ADerrors.uwerror(p[i], ws, wpm)
+    end
+
+    ids = unique_ids_multi(a, ws)
+    iw = zeros(Int64, length(ids))
+    for k in 1:n
+        for j in 1:length(p[k].ids)
+            for i in 1:length(ids)
+                if (p[k].ids[j] == ids[i])
+                    iw[i] = max(iw[i], p[k].cfd[j].iw)
+                end
+            end
+        end
+    end
+    
+    wopt = Dict{Int64,Vector{Float64}}()
+    for i in 1:length(ids)
+        wopt[ids[i]] = [Base.convert(Float64, iw[i]), -1.0, -1.0, -1.0]
+    end
+
+    tr = 0.0
+    for k in 1:n
+        ADerrors.uwerror(p[k], ws, wopt)
+        tr = tr + usvt.S[k]*p[k].err^2
+    end
+
+    return tr
+end
 
 ##                                         ##
 # Module workspace and function definitions #
@@ -450,10 +598,169 @@ wsg = ADerrors.wspace(similar(Vector{ADerrors.fbd}, 0),
 
 empt = Dict{Int64,Vector{Float64}}()
 
+
+"""
+    uwreal(x::Float64)
+    uwreal([value::Float64, error::Float64], mcid)
+    uwreal(data::Vector{Float64}, mcid::Int64[, replica::Vector{Int64}])
+    uwreal(data::Vector{Float64}, mcid::Int64[, replica::Vector{Int64}], idm::Vector{Int64}, nms::Int64)
+
+Returns an `uwreal` data type. Depending on the first argument, the `uwreal` stores the following information:
+- A single `Float64`. In this case the variable acts in exactly the same way as a real number. This is understood as a quantity with zero error.
+- A 2 element Vector of `Float64` `[value, error]`. In this case the data is understood as `value +/- error`.
+- A Vector of `Float64` of length larger than 2. In this case the data is understood as consecutive measurements of an observable in a Monte Carlo (MC) simulation. 
+
+In the last two cases, an ensemble `ID` is required as input. Data with the same `ID` are considered as correlated (i.e. fully correlated for the case of a `value +/- error` observables measured on the same sample for the case of data from a MC simulation). For example:
+
+```@example
+using ADerrors # hide
+a = uwreal([1.2, 0.2], 12)   # a = 1.2 +/- 0.2
+b = uwreal([1.2, 0.2], 12)   # b = 1.2 +/- 0.2
+c = uwreal([1.2, 0.2], 2000) # c = 1.2 +/- 0.2
+
+d = a-b
+uwerr(d)
+println("d has zero error because a and b are correlated", d)
+
+e = a-c
+uwerr(e)
+println("e has non zero error because a and c are independent", e)
+```
+
+### Replica
+
+`data` can contain measurements in several replica (i.e. independent simulations with the same physical and algorithmic parameters). How many measurements correspond to each replica are specified by an optional replica vector argument `replica`. Note that `length(replica)` is the number of replica (i.e. independent simulations), and that `sum(replica)` must match `length(data)` 
+```@example
+using ADerrors # hide
+# 1000 measurements in three replica of lengths
+# 500, 100 and 400
+a = uwreal(rand(1000), 12, [500, 100, 400]) 
+```
+### Gaps in the measurements
+
+In some situations an observable is not measured in every configuration. In this case two additional arguments aree needed to define the observable
+- `idm`. Type `Vector{Int64}`. `idm[n]` labels the configuration where data[n] is measured.
+- `nms`. Type `Int64`. The total number of measurements in the ensemble
+```@example
+using ADerrors # hide
+# Observable measured on the odd configurations 
+# 1, 3, 5, ..., 999 on an emsemble of length 1000
+a = uwreal(rand(500), 12, collect(1:2:999), 1000)
+
+# Observable measured on the first 900 configurations 
+# on the same emsemble
+b = uwreal(rand(900), 12, collect(1:900), 1000)
+```
+Note that in this case, if the ensemble has different replica, `sum(replica)` must match `nms`
+```@example
+using ADerrors # hide
+# Observable measured on the even configurations 
+# 2, 4, 6, ..., 200 on an emsemble of length 200
+# with two replica of lengths 75, 125
+a = uwreal(data_a[1:500], 123, [75, 125], collect(2:2:200), 200)
+```
+"""
+uwreal(x::Float64) = ADerrors.uwreal(x, 0.0, 0.0, 
+                                     Vector{Bool}(), Vector{Float64}(), 
+                                     Vector{Int64}(), Vector{cfdata}())
+
 uwreal(data::Vector{Float64}, id::Int64) = ADerrors.uwcls(data::Vector{Float64}, id::Int64, wsg, [length(data)])
 uwreal(data::Vector{Float64}, id::Int64, iv::Vector{Int64}) = ADerrors.uwcls(data::Vector{Float64}, id::Int64, wsg, iv)
+uwreal(data::Vector{Float64}, id::Int64, idm::Vector{Int64}, nms::Int64) = ADerrors.uwcls_gaps(data::Vector{Float64},
+                    id::Int64, ws::wspace,
+                    [nms],
+                    idm::Vector{Int64},
+                    nms::Int64)
+uwreal(data::Vector{Float64}, id::Int64, iv::Vector{Int64}, idm::Vector{Int64}, nms::Int64) = ADerrors.uwcls_gaps(data::Vector{Float64},
+                    id::Int64, ws::wspace,
+                    iv::Vector{Int64},
+                    idm::Vector{Int64},
+                    nms::Int64)
 
+@doc raw"""
+     uwerr(a::uwreal[, wpm::Dict{Int64,Vector{Float64}}])
+
+Performs error analysis on the observable `a`.
+```@example
+using ADerrors # hide
+a = uwreal([1.3, 0.01], 1) # 1.3 +/- 0.01
+b = sin(2.0*a)
+uwerr(b)
+println("Look how I propagate errors:              ", b)
+c = 1.0 + b - 2.0*sin(a)*cos(a)
+uwerr(b)
+println("Look how good I am at this (zero error!): ", c)
+```
+
+### Optimal window
+
+Error in data coming from a Monte Carlo ensemble is performed by summing the autocorrelation function ``\Gamma_{\rm ID}(t)`` of the data for each ensemble ID. In practice this sum is truncated up to a window ``W_{\rm ID}``.
+
+By default, the summation window is determined as [proposed by U. Wolff](https://inspirehep.net/literature/621085) with a parameter ``S_{\tau} = 4``, but other methods are avilable via the optional argument `wpm`. 
+
+For each ensemble `ID` one has to pass a vector of `Float64` of length 4. The first three components of the vector specify the criteria to determine the summation window:
+- `vp[1]`: The autocorrelation function is summed up to `t = round(vp[1])`.
+- `vp[2]`: The sumation window is determined [using U. Wolff poposal](https://inspirehep.net/literature/621085) with ``S_{\tau} = {\rm vp[2]}``.
+- `vp[3]`: The autocorrelation function ``\Gamma(t)`` is summed up a point where its error ``\delta\Gamma(t)`` is a factor `vp[3]` times larger than the signal. 
+
+An additional fourth parameter `vp[4]`, tells `ADerrors` to add a tail to the error with ``\tau_{\rm exp} = {\rm vp[4]}``. See [the reference](https://inspirehep.net/literature/871175) for an explanation of the procedure.
+
+Note that:
+- Negative values of `vp[1:4]` are ignored. 
+- One, and only one, of the components `vp[1:3]` has to be positive. This chooses your criteria to determine the summation window.
+```@example
+using ADerrors # hide
+a = uwreal(rand(2000), 1233)
+wpm = Dict{Int64,Vector{Float64}}()
+
+# Use default analysis (stau = 4.0)
+uwerr(a)
+println(a)
+
+# This will still do default analysis because 
+# a does not depend on emsemble 300
+wpm[300] = [-1.0, 8.0, -1.0, 145.0]
+uwerr(a, wpm)
+println(a)
+
+# Fix the summation window to 1 (i.e. uncorrelated data)
+wpm[1233] = [1.0, -1.0, -1.0, -1.0]
+uwerr(a, wpm)
+println(a)
+
+# Use stau = 1.5
+wpm[1233] = [-1.0, 1.5, -1.0, -1.0]
+uwerr(a, wpm)
+println(a)
+
+# Use fixed window 15 and add tail with texp = 100.0
+wpm[1233] = [15.0, -1.0, -1.0, 100.0]
+uwerr(a, wpm)
+println(a)
+
+# Sum up to the point that the signal in Gamma is 
+# 1.5 times the error and add a tail with texp = 30.0
+wpm[1233] = [-1.0, -1.0, 1.5, 30.0]
+uwerr(a, wpm)
+println(a)
+```
+"""
+uwerr(a::uwreal, wpm::Dict{Int64,Vector{Float64}}) = ADerrors.uwerror(a::uwreal, wsg, wpm)
 uwerr(a::uwreal) = ADerrors.uwerror(a::uwreal, wsg, empt)
-uwerr(a::uwreal, wpm::Dict{Int64,Vector{Float64}}) = ADerrors.uwerror(a::uwreal, wsg, wpm::Dict{Int64,Vector{Float64}})
+
+cov(a::Vector{uwreal}) = cov(a::Vector{uwreal}, wsg, empt)
+cov(a::Vector{uwreal}, wpm::Dict{Int64,Vector{Float64}}) = cov(a::Vector{uwreal}, wsg, wpm::Dict{Int64,Vector{Float64}})
+
+trcov(M, a::Vector{uwreal}) = trcov(M, a::Vector{uwreal}, wsg, empt)
+trcov(M, a::Vector{uwreal}, wpm::Dict{Int64,Vector{Float64}}) = trcov(M, a::Vector{uwreal}, wsg, wpm::Dict{Int64,Vector{Float64}})
+
+trcorr(M, a::Vector{uwreal},
+       W::Vector{Float64}=Vector{Float64}()) = trcorr(M, a::Vector{uwreal}, wsg, empt, W)
+trcorr(M, a::Vector{uwreal},
+       W::Vector{Float64}, wpm::Dict{Int64,Vector{Float64}}) = trcorr(M, a::Vector{uwreal}, wsg, wpm::Dict{Int64,Vector{Float64}}, W)
+trcorr(M, a::Vector{uwreal},
+       wpm::Dict{Int64,Vector{Float64}}) = trcorr(M, a::Vector{uwreal}, wsg, wpm::Dict{Int64,Vector{Float64}}, Vector{Float64}())
+
+
 neid(a::uwreal)  = ADerrors.unique_ids!(a::uwreal, wsg)
 

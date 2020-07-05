@@ -32,6 +32,22 @@ mutable struct uwreal
     ids::Array{Int64, 1}
 
     cfd::Vector{cfdata}
+
+    uwreal(a::Float64, b::Float64, c::Float64,
+           d::Array{Bool, 1}, e::Array{Float64, 1},
+           f::Array{Int64, 1}, g::Vector{cfdata}) = new(a, b, c, d, e, f, g) 
+    function uwreal(n::Int64)
+        x = new()
+        x.mean = 0.0
+        x.err  = 0.0
+        x.derr = 0.0
+        x.prop = Vector{Bool}(undef, n)
+        x.der  = Vector{Float64}(undef, n)
+
+        x.prop .= false
+        x.der  .= 0.0
+        return x
+    end
 end
 
 mutable struct fbd
@@ -52,6 +68,10 @@ mutable struct wspace
 end
 
 
+Base.convert(::Type{uwreal}, x::Float64) = uwreal(x, 0.0, 0.0, 
+                                            Vector{Bool}(), Vector{Float64}(), 
+                                            Vector{Int64}(), Vector{cfdata}())
+
 uwreal(v::Float64, n::Int) = uwreal(v, 0.0, 0.0,
                                     [false for i in 1:n], [0.0 for i in 1:n],
                                     Vector{Int64}(), Vector{cfdata}())
@@ -60,6 +80,12 @@ uwreal(v::Float64, prop::Vector{Bool}, der::Vector{Float64}) = uwreal(v, 0.0, 0.
                                     Vector{Int64}(), Vector{cfdata}())
 
 function Base.show(io::IO, a::uwreal)
+    
+    if (length(a.prop) == 0)
+        print(a.mean)
+        return
+    end
+    
     if (length(a.cfd) > 0) 
         print(a.mean, " +/- ", a.err)
     else

@@ -11,7 +11,7 @@
 
 module ADerrors
 
-import ForwardDiff, Statistics, FFTW#, BDIO
+import ForwardDiff, Statistics, FFTW, LinearAlgebra, QuadGK, BDIO, Printf
 
 # Include data types
 include("ADerrorsTypes.jl")
@@ -24,7 +24,18 @@ include("ADerrorsMath.jl")
 
 # I/O
 include("ADerrorsIO.jl")
-export err, value, derror, taui, dtaui, window
+
+# Basic tools
+include("ADerrorsTools.jl")
+
+# Root, fit, integral error propagation
+include("ADerrorsUtils.jl")
+
+export err, value, derror, taui, dtaui, window, rho, drho, details
 export uwreal, uwerr
+export cov, trcov, trcorr, neid
+export read_uwreal, write_uwreal
+export addobs, cobs
+export root_error, chiexp, fit_error, int_error
 
 end # module
