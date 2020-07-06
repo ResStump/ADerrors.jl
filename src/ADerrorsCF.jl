@@ -207,18 +207,18 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                 nt = div(nt, 2*ws.fluc[idx].ibn)
                 nrep   = length(ws.fluc[idx].ivrep)
                 ftemp  = Dict{Int64,Vector{Complex{Float64}}}()
-                for i in 1:nrep
+                @inbounds for i in 1:nrep
                     ns = length(ws.fluc[idx].fourier[i])
                     ftemp[i] = zeros(Complex{Float64}, ns)
                 end
             end
             
-            for i in 1:length(a.prop)
+            @inbounds for i in 1:length(a.prop)
                 if (a.prop[i] && (ws.map_nob[i] == a.ids[j]))
                     if (nd == 1)
                         a.cfd[j].var = a.cfd[j].var + a.der[i]*ws.fluc[i].delta[1]
                     else
-                        for k in 1:nrep
+                        @inbounds for k in 1:nrep
                             ftemp[k] = ftemp[k] + a.der[i]*ws.fluc[i].fourier[k]
                         end
                     end
@@ -229,15 +229,15 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                 a.cfd[j].var = a.cfd[j].var^2
             else
                 a.cfd[j].gamm = zeros(nt)
-                for k in 1:nrep
+                @inbounds for k in 1:nrep
                     ftemp[k] .= ftemp[k].*conj(ftemp[k])
                     FFTW.ifft!(ftemp[k])
 
-                    for ig in 1:min(nt,length(ftemp[k]))
+                    @inbounds for ig in 1:min(nt,length(ftemp[k]))
                         a.cfd[j].gamm[ig] = a.cfd[j].gamm[ig] + real(ftemp[k][ig])
                     end
                 end
-                for ig in 1:nt
+                @inbounds for ig in 1:nt
                     nrcnt = 0
                     for k in 1:nrep
                         if (div(ws.fluc[idx].ivrep[k], 2*ws.fluc[idx].ibn) > ig-1 )
@@ -256,10 +256,10 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
 
                 a.cfd[j].drho = zeros(nt)
                 if (a.cfd[j].gamm[1] != 0.0)
-                    for i in 1:nt
+                    @inbounds for i in 1:nt
                         is = max(1, i-iw-2) + 1
                         ie = i + iw-1
-                        for k in is:ie
+                        @inbounds for k in is:ie
                             if (k < nt+1)
                                 cont = -2.0*a.cfd[j].gamm[k]*a.cfd[j].gamm[i]/a.cfd[j].gamm[1]^2
                             else
