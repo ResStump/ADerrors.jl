@@ -201,7 +201,8 @@ function details(a::uwreal, ws::wspace, io::IO=stdout, names::Dict{Int64, String
 
         n = 0
         for i in 1:length(a.cfd)
-            if (length(a.cfd[i].gamm) > 0)
+            idx  = ws.map_ids[a.ids[i]]
+            if (ws.fluc[idx].nd > 1)
                 n = n + 1
             end
         end
@@ -217,10 +218,10 @@ function details(a::uwreal, ws::wspace, io::IO=stdout, names::Dict{Int64, String
         end
         ip = sortperm(v, rev=true)
         for i in 1:length(a.cfd)
+            idx  = ws.map_ids[a.ids[ip[i]]]
+            nd   = ws.fluc[idx].nd
             sid = truncate_ascii(get(names, a.ids[ip[i]], string(a.ids[ip[i]])), ntrunc)
-            if (length(a.cfd[ip[i]].gamm) > 0)
-                idx  = ws.map_ids[a.ids[i]]
-                nd   = ws.fluc[idx].nd
+            if (nd > 1)
                 Printf.@printf("  #  %45s %6.2f   %10d\n",
                         sid, 100.0 .* a.cfd[ip[i]].var ./ a.err^2, nd)
             else

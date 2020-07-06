@@ -14,13 +14,12 @@ function cobs(avgs::Vector{Float64}, cov::Array{Float64, 2}, ids::Vector{Int64})
     ch = LinearAlgebra.cholesky(cov)
 
     n = length(avgs)
-    p = Vector{uwreal}()
+    p = Vector{uwreal}(undef, n)
     for j in 1:n
-        new = uwreal([avgs[j], ch.L[j, 1]], ids[1])
+        p[j] = uwreal([avgs[j], ch.L[j, 1]], ids[1])
         for i in 2:n
-            new = new + uwreal([0.0, ch.L[j,i]], ids[i])
+            p[j] = p[j] + uwreal([0.0, ch.L[j,i]], ids[i])
         end
-        push!(p, new)
     end
     return p
 end
@@ -55,7 +54,7 @@ function addobs(a::Vector{uwreal}, der::Array{Float64, 2}, mvl::Vector{Float64})
         n = max(n,length(a[i].der))
     end
 
-    x = Vector{uwreal}()
+    x = Vector{uwreal}(undef, size(der, 1))
     for i in 1:size(der, 1)
         p = [false for i in 1:n]
         d = zeros(Float64, n)
@@ -69,7 +68,7 @@ function addobs(a::Vector{uwreal}, der::Array{Float64, 2}, mvl::Vector{Float64})
                 end
             end
         end
-        push!(x, uwreal(mvl[i], p, d))
+        x[i] = uwreal(mvl[i], p, d)
     end
     
     return x

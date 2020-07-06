@@ -196,8 +196,9 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
     nid = unique_ids!(a, ws)
 
     if (length(a.cfd) == 0)
+        a.cfd = Vector{cfdata}(undef, nid)
         for j in 1:nid
-            new = cfdata(0.0, 0.0, 0.0, 0, Vector{Float64}(), Vector{Float64}())
+            a.cfd[j] = cfdata()
             idx = ws.map_ids[a.ids[j]]
             nd  = ws.fluc[idx].nd
             if (nd != 1)
@@ -215,7 +216,7 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
             for i in 1:length(a.prop)
                 if (a.prop[i] && (ws.map_nob[i] == a.ids[j]))
                     if (nd == 1)
-                        new.var = new.var + a.der[i]*ws.fluc[i].delta[1]
+                        a.cfd[j].var = a.cfd[j].var + a.der[i]*ws.fluc[i].delta[1]
                     else
                         for k in 1:nrep
                             ftemp[k] = ftemp[k] + a.der[i]*ws.fluc[i].fourier[k]
@@ -225,56 +226,60 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
             end
 
             if (nd == 1)
-                new.var = new.var^2
+                a.cfd[j].var = a.cfd[j].var^2
             else
-                new.gamm = zeros(nt)
+                a.cfd[j].gamm = zeros(nt)
                 for k in 1:nrep
                     ftemp[k] .= ftemp[k].*conj(ftemp[k])
                     FFTW.ifft!(ftemp[k])
 
                     for ig in 1:min(nt,length(ftemp[k]))
-                        new.gamm[ig] = new.gamm[ig] + real(ftemp[k][ig])
+                        a.cfd[j].gamm[ig] = a.cfd[j].gamm[ig] + real(ftemp[k][ig])
                     end
                 end
                 for ig in 1:nt
-                    nrcnt = count(map(x -> div(x, 2*ws.fluc[idx].ibn), ws.fluc[idx].ivrep) .> ig-1)
-                    new.gamm[ig] = new.gamm[ig] / (nd_eff - nrcnt*(ig-1))
+                    nrcnt = 0
+                    for k in 1:nrep
+                        if (div(ws.fluc[idx].ivrep[k], 2*ws.fluc[idx].ibn) > ig-1 )
+                            nrcnt = nrcnt + 1
+                        end
+                    end
+                    a.cfd[j].gamm[ig] = a.cfd[j].gamm[ig] / (nd_eff - nrcnt*(ig-1))
                 end
 
-                iw = wopt_ulli(nd_eff, DEFAULT_STAU, new.gamm)
-                new.iw = iw
-                
-                dbias = new.gamm[1] + 2.0*sum(new.gamm[2:iw])
-                new.gamm .= new.gamm .+ dbias/nd_eff
+                iw = wopt_ulli(nd_eff, DEFAULT_STAU, a.cfd[j].gamm)
+                a.cfd[j].iw = iw
 
-                new.drho = zeros(nt)
-                if (new.gamm[1] != 0.0)
+                gwin  = view(a.cfd[j].gamm, 2:iw)
+                dbias = a.cfd[j].gamm[1] + 2.0*sum(gwin)
+                a.cfd[j].gamm .= a.cfd[j].gamm .+ dbias/nd_eff
+
+                a.cfd[j].drho = zeros(nt)
+                if (a.cfd[j].gamm[1] != 0.0)
                     for i in 1:nt
                         is = max(1, i-iw-2) + 1
                         ie = i + iw-1
                         for k in is:ie
                             if (k < nt+1)
-                                cont = -2.0*new.gamm[k]*new.gamm[i]/new.gamm[1]^2
+                                cont = -2.0*a.cfd[j].gamm[k]*a.cfd[j].gamm[i]/a.cfd[j].gamm[1]^2
                             else
                                 cont = 0.0
                             end
 
                             if ((i+k-2) < nt)
-                                cont = cont + new.gamm[i+k-1]/new.gamm[1]
+                                cont = cont + a.cfd[j].gamm[i+k-1]/a.cfd[j].gamm[1]
                             end
                             if (abs(i-k) < nt)
-                                cont = cont + new.gamm[abs(i-k)+1]/new.gamm[1]
+                                cont = cont + a.cfd[j].gamm[abs(i-k)+1]/a.cfd[j].gamm[1]
                             end
-                            new.drho[i] = new.drho[i] + cont^2
+                            a.cfd[j].drho[i] = a.cfd[j].drho[i] + cont^2
                         end
-                        new.drho[i] = sqrt(new.drho[i]/nd_eff)
+                        a.cfd[j].drho[i] = sqrt(a.cfd[j].drho[i]/nd_eff)
                     end
                 else
-                    new.var = new.var^2
+                    a.cfd[j].var = a.cfd[j].var^2
                 end
             end
-
-            push!(a.cfd, new)
         end
     end
 
@@ -323,7 +328,8 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                 end
                 iw = a.cfd[j].iw
                 
-                vti = 0.5 + sum(a.cfd[j].gamm[2:iw])/a.cfd[j].gamm[1]
+                gwin  = view(a.cfd[j].gamm, 2:iw)
+                vti = 0.5 + sum(gwin)/a.cfd[j].gamm[1]
                 a.cfd[j].dtaui = sqrt(vti^2 * (4.0*iw-2.0*vti+2.0)/nd_eff)
                 a.cfd[j].taui  = vti + texp*a.cfd[j].gamm[iw+1]/a.cfd[j].gamm[1]
             end

@@ -10,6 +10,13 @@
 ###                               
 
 
+mutable struct hyperd
+    v::Float64
+    d1::Float64
+    d2::Float64
+    d3::Float64
+end
+       
 mutable struct cfdata
     var::Float64
     taui::Float64
@@ -19,6 +26,15 @@ mutable struct cfdata
     
     gamm::Vector{Float64}
     drho::Vector{Float64}
+
+    function cfdata()
+        x = new()
+        x.var   = 0.0
+        x.taui  = 0.0
+        x.dtaui = 0.0
+        x.iw = 0
+        return x
+    end
 end
 
 mutable struct uwreal
