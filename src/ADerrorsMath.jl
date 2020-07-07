@@ -30,22 +30,22 @@ for op in (:+, :-, :*, :/, :^, :atan, :hypot)
         if (length(a.der) > length(b.der))
             p = similar(a.prop)
             d = similar(a.der)
-            for i in 1:length(b.der)
+            @inbounds for i in 1:length(b.der)
                 d[i] = grad[1]*a.der[i] + grad[2]*b.der[i]
                 p[i] = a.prop[i] || b.prop[i]
             end
-            for i in length(b.der)+1:length(a.der)
+            @inbounds for i in length(b.der)+1:length(a.der)
                 d[i] = grad[1]*a.der[i]
                 p[i] = a.prop[i]
             end
         else
             p = similar(b.prop)
             d = similar(b.der)
-            for i in 1:length(a.der)
+            @inbounds for i in 1:length(a.der)
                 d[i] = grad[1]*a.der[i] + grad[2]*b.der[i]
                 p[i] = a.prop[i] || b.prop[i]
             end
-            for i in length(a.der)+1:length(b.der)
+            @inbounds for i in length(a.der)+1:length(b.der)
                 d[i] = grad[2]*b.der[i]
                 p[i] = b.prop[i]
             end
