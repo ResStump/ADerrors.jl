@@ -67,7 +67,6 @@ function chiexp(chisq::Function,
 
     n = length(xp)   # Number of fit parameters
     m = length(data) # Number of data
-    ccsq(x::Vector) = chisq(x[1:n], x[n+1:end])
 
     xav = zeros(Float64, n+m)
     for i in 1:n
@@ -76,7 +75,10 @@ function chiexp(chisq::Function,
     for i in n+1:n+m
         xav[i] = data[i-n].mean
     end
-    hess = ForwardDiff.hessian(ccsq, xav)
+    ccsq(x::Vector) = chisq(view(x, 1:n), view(x, n+1:n+m))
+    hess = Array{Float64}(undef, n+m, n+m)
+#    @time ForwardDiff.hessian!(hess, ccsq, xav)
+    hyperd_hessian!(hess, ccsq, xav)
 
     cse = 0.0
     if (m-n > 0)
@@ -117,14 +119,10 @@ function fit_error(chisq::Function,
         xav[i] = data[i-n].mean
     end
 
-    function cls(x0)
-        x1 = view(x0, 1:n)
-        x2 = view(x0, n+1:n+m)
-        return chisq(x1, x2)
-    end
-
+    ccsq(x::Vector) = chisq(view(x, 1:n), view(x, n+1:n+m))
     hess = Array{Float64}(undef, n+m, n+m)
-    ForwardDiff.hessian!(hess, cls, xav)
+#    @time ForwardDiff.hessian!(hess, ccsq, xav)
+    hyperd_hessian!(hess, ccsq, xav)
     
     hinv = LinearAlgebra.pinv(hess[1:n,1:n])
     grad = - hinv[1:n,1:n] * hess[1:n,n+1:n+m]

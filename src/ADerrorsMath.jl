@@ -17,7 +17,6 @@ for op in (:sin, :cos, :tan, :log, :exp, :sqrt, :sind, :cosd, :tand, :sinpi, :co
     end
 end 
 
-
 for op in (:+, :-, :*, :/, :^, :atan, :hypot)
     @eval function Base.$op(a::uwreal, b::uwreal)
 

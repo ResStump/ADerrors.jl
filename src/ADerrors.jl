@@ -16,6 +16,9 @@ import ForwardDiff, Statistics, FFTW, LinearAlgebra, QuadGK, BDIO, Printf
 # Include data types
 include("ADerrorsTypes.jl")
 
+# hyperd for hessian
+include("ADerrorsHyperd.jl")
+
 # Include computation of autoCF
 include("ADerrorsCF.jl")
 
