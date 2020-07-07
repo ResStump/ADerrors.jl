@@ -12,6 +12,7 @@
 module ADerrors
 
 import ForwardDiff, Statistics, FFTW, LinearAlgebra, QuadGK, BDIO, Printf
+import ForwardDiff: HessianConfig, GradientConfig, Chunk, hessian!
 
 # Include data types
 include("ADerrorsTypes.jl")

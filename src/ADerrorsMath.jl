@@ -23,8 +23,9 @@ for op in (:+, :-, :*, :/, :^, :atan, :hypot)
         function fvec(x::Vector)
             return Base.$op(x[1], x[2])
         end
-        grad = ForwardDiff.gradient(fvec, [a.mean, b.mean])
-
+        x = [a.mean, b.mean]
+        cfg  = GradientConfig(fvec, x, Chunk{2}());
+        grad = ForwardDiff.gradient(fvec, x, cfg)
         
         if (length(a.der) > length(b.der))
             p = similar(a.prop)

@@ -31,12 +31,17 @@ function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Vector{Float64
     n = size(hess, 1) - m
 
     hm = view(hess, 1:n, n+1:n+m)
-    sm = hm * LinearAlgebra.Diagonal(1.0 ./ sqrt.(W))
+    sm = Array{Float64, 2}(undef, n, m)
+    for i in 1:n, j in 1:m
+        sm[i,j] = hm[i,j] / sqrt.(W[j])
+    end
+    maux = sm * sm'
+    hi   = LinearAlgebra.pinv(maux)
+    Px   = -hm' * hi * hm
 
-    Px = LinearAlgebra.Symmetric(LinearAlgebra.Diagonal(W)) -
-        LinearAlgebra.Symmetric(hm' *
-                                LinearAlgebra.inv(LinearAlgebra.Symmetric(sm * sm')) *
-                                hm)
+    for i in 1:m
+        Px[i,i] = W[i] + Px[i,i]
+    end
 
     return trcov(Px, data)
 end
@@ -52,11 +57,10 @@ function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Array{Float64,
     hm = view(hess, 1:n, n+1:n+m)
     sm = hm * Li'
     
-    Px = LinearAlgebra.Symmetric(W) -
-        LinearAlgebra.Symmetric(hm' *
-                                LinearAlgebra.inv(LinearAlgebra.Symmetric(sm * sm')) *
-                                hm)
-    
+    maux = sm * sm'
+    hi   = LinearAlgebra.pinv(maux)
+    Px   = W - hm' * hi * hm
+
     return trcov(Px, data)
 end
 
@@ -75,11 +79,12 @@ function chiexp(chisq::Function,
     for i in n+1:n+m
         xav[i] = data[i-n].mean
     end
-    ccsq(x::Vector) = chisq(view(x, 1:n), view(x, n+1:n+m))
-    hess = Array{Float64}(undef, n+m, n+m)
-#    @time ForwardDiff.hessian!(hess, ccsq, xav)
-    hyperd_hessian!(hess, ccsq, xav)
+    ccsq(x::Vector) = chisq(view(x, 1:n), view(x, n+1:n+m)) 
+    cfg = ForwardDiff.HessianConfig(ccsq, xav, Chunk{8}());
 
+    hess = Array{Float64}(undef, n+m, n+m)
+    ForwardDiff.hessian!(hess, ccsq, xav, cfg)
+        
     cse = 0.0
     if (m-n > 0)
         if (length(W) == 0)
@@ -119,10 +124,11 @@ function fit_error(chisq::Function,
         xav[i] = data[i-n].mean
     end
 
-    ccsq(x::Vector) = chisq(view(x, 1:n), view(x, n+1:n+m))
+    ccsq(x::Vector) = chisq(x[1:n], x[n+1:n+m])
+    cfg = ForwardDiff.HessianConfig(ccsq, xav, Chunk{8}());
+
     hess = Array{Float64}(undef, n+m, n+m)
-#    @time ForwardDiff.hessian!(hess, ccsq, xav)
-    hyperd_hessian!(hess, ccsq, xav)
+    ForwardDiff.hessian!(hess, ccsq, xav, cfg)
     
     hinv = LinearAlgebra.pinv(hess[1:n,1:n])
     grad = - hinv[1:n,1:n] * hess[1:n,n+1:n+m]
