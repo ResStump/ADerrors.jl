@@ -17,9 +17,6 @@ import ForwardDiff: HessianConfig, GradientConfig, Chunk, hessian!
 # Include data types
 include("ADerrorsTypes.jl")
 
-# hyperd for hessian
-include("ADerrorsHyperd.jl")
-
 # Include computation of autoCF
 include("ADerrorsCF.jl")
 

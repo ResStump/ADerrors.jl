@@ -9,14 +9,6 @@
 ### created: Wed Jun 17 13:00:32 2020
 ###                               
 
-
-mutable struct hyperd
-    v::Float64
-    d1::Float64
-    d2::Float64
-    dd::Float64
-end
-       
 mutable struct cfdata
     var::Float64
     taui::Float64
