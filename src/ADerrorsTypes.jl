@@ -14,7 +14,7 @@ mutable struct hyperd
     v::Float64
     d1::Float64
     d2::Float64
-    d3::Float64
+    dd::Float64
 end
        
 mutable struct cfdata
