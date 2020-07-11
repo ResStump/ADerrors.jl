@@ -9,6 +9,32 @@
 ### created: Fri Jun 26 21:48:35 2020
 ###                               
 
+"""
+    cobs(avgs::Vector{Float64}, Mcov::Array{Float64, 2}, ids::Vector{Int64})
+
+Returns a vector of `uwreal` such that their mean values are `avgs[:]` and their covariance is `Mcov[:,:]`. In order to construct these observables `n=length(avgs)` ensemble ID are used. These have to be specified in the vector `ids[:]`.
+```@example
+using ADerrors # hide
+# Put some average values and covariance 
+avg = [16.26, 0.12, -0.0038]
+Mcov = [0.478071 -0.176116 0.0135305
+        -0.176116 0.0696489 -0.00554431
+        0.0135305 -0.00554431 0.000454180]
+
+# Produce observables with ensemble ID 
+# [1, 2001, 32]. Do error analysis
+p = cobs(avg, Mcov, [1, 2001, 32])
+uwerr.(p)
+
+# Check central values are ok
+avg2 = value.(p)
+println("Better be zero: ", sum((avg.-avg2).^2))
+
+# Check that the covariance is ok
+Mcov2 = cov(p)
+println("Better be zero: ", sum((Mcov.-Mcov2).^2))
+```
+"""
 function cobs(avgs::Vector{Float64}, cov::Array{Float64, 2}, ids::Vector{Int64})
 
     ch = LinearAlgebra.cholesky(cov)

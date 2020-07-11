@@ -74,7 +74,14 @@ function add_DB(delta::Vector{Float64}, id::Int64, iv::Vector{Int64}, ws::wspace
         end
         ws.nob += 1
         push!(ws.map_nob, id)
-        if (!haskey(ws.map_ids, id))
+        if (haskey(ws.map_ids, id))
+            if (length(delta) != ws.fluc[ws.map_ids[id]].nd)
+                error("Mistmatch in data length for the same ensemble ID")
+            end
+            if (iv != ws.fluc[ws.map_ids[id]].ivrep)
+                error("Mistmatch in replica vector for the same ensemble ID")
+            end
+        else
             ws.map_ids[id] = ws.nob
         end
 
@@ -313,12 +320,14 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                 end
                 
                 if (wp[3] > 0.0)
+                    iw = 1
                     for k in 2:nt
                         if (a.cfd[j].drho[k]*wp[3] > a.cfd[j].gamm[k]/a.cfd[j].gamm[1])
-                            continue
+                            iw = k-1
+                            break
                         end
                     end
-                    a.cfd[j].iw = k-1
+                    a.cfd[j].iw = iw
                 end
 
                 if (wp[4] > 0.0)
@@ -612,9 +621,9 @@ empt = Dict{Int64,Vector{Float64}}()
     uwreal(data::Vector{Float64}, mcid::Int64[, replica::Vector{Int64}], idm::Vector{Int64}, nms::Int64)
 
 Returns an `uwreal` data type. Depending on the first argument, the `uwreal` stores the following information:
-- A single `Float64`. In this case the variable acts in exactly the same way as a real number. This is understood as a quantity with zero error.
-- A 2 element Vector of `Float64` `[value, error]`. In this case the data is understood as `value +/- error`.
-- A Vector of `Float64` of length larger than 2. In this case the data is understood as consecutive measurements of an observable in a Monte Carlo (MC) simulation. 
+- Input is a single `Float64`. In this case the variable acts in exactly the same way as a real number. This is understood as a quantity with zero error.
+- Input is a 2 element Vector of `Float64` `[value, error]`. In this case the data is understood as `value +/- error`.
+- Input is a Vector of `Float64` of length larger than 4. In this case the data is understood as consecutive measurements of an observable in a Monte Carlo (MC) simulation. 
 
 In the last two cases, an ensemble `ID` is required as input. Data with the same `ID` are considered as correlated (i.e. fully correlated for the case of a `value +/- error` observables measured on the same sample for the case of data from a MC simulation). For example:
 
@@ -644,8 +653,8 @@ a = uwreal(rand(1000), 12, [500, 100, 400])
 ```
 ### Gaps in the measurements
 
-In some situations an observable is not measured in every configuration. In this case two additional arguments aree needed to define the observable
-- `idm`. Type `Vector{Int64}`. `idm[n]` labels the configuration where data[n] is measured.
+In some situations an observable is not measured in every configuration. In this case two additional arguments are needed to define the observable
+- `idm`. Type `Vector{Int64}`. `idm[n]` labels the configuration where `data[n]`is measured.
 - `nms`. Type `Int64`. The total number of measurements in the ensemble
 ```@example
 using ADerrors # hide
@@ -694,17 +703,17 @@ b = sin(2.0*a)
 uwerr(b)
 println("Look how I propagate errors:              ", b)
 c = 1.0 + b - 2.0*sin(a)*cos(a)
-uwerr(b)
+uwerr(c)
 println("Look how good I am at this (zero error!): ", c)
 ```
 
 ### Optimal window
 
-Error in data coming from a Monte Carlo ensemble is performed by summing the autocorrelation function ``\Gamma_{\rm ID}(t)`` of the data for each ensemble ID. In practice this sum is truncated up to a window ``W_{\rm ID}``.
+Error in data coming from a Monte Carlo ensemble is determined by summing the autocorrelation function ``\Gamma_{\rm ID}(t)`` of the data for each ensemble ID. In practice this sum is truncated up to a window ``W_{\rm ID}``.
 
 By default, the summation window is determined as [proposed by U. Wolff](https://inspirehep.net/literature/621085) with a parameter ``S_{\tau} = 4``, but other methods are avilable via the optional argument `wpm`. 
 
-For each ensemble `ID` one has to pass a vector of `Float64` of length 4. The first three components of the vector specify the criteria to determine the summation window:
+For each ensemble `ID` one can pass a vector of `Float64` of length 4. The first three components of the vector specify the criteria to determine the summation window:
 - `vp[1]`: The autocorrelation function is summed up to `t = round(vp[1])`.
 - `vp[2]`: The sumation window is determined [using U. Wolff poposal](https://inspirehep.net/literature/621085) with ``S_{\tau} = {\rm vp[2]}``.
 - `vp[3]`: The autocorrelation function ``\Gamma(t)`` is summed up a point where its error ``\delta\Gamma(t)`` is a factor `vp[3]` times larger than the signal. 
@@ -716,44 +725,80 @@ Note that:
 - One, and only one, of the components `vp[1:3]` has to be positive. This chooses your criteria to determine the summation window.
 ```@example
 using ADerrors # hide
-a = uwreal(rand(2000), 1233)
+# Generate some correlated data
+eta  = randn(1000)
+x    = Vector{Float64}(undef, 1000)
+x[1] = 0.0
+for i in 2:1000
+    x[i] = x[i-1] + eta[i]
+    if abs(x[i]) > 1.0
+        x[i] = x[i-1]
+    end
+end
+
+# Load the data in a uwreal
+a = uwreal(x.^2, 1233)
 wpm = Dict{Int64,Vector{Float64}}()
 
 # Use default analysis (stau = 4.0)
 uwerr(a)
-println(a)
+println("default:                   ", a, " (tauint = ", taui(a, 1233), ")")
 
 # This will still do default analysis because 
 # a does not depend on emsemble 300
 wpm[300] = [-1.0, 8.0, -1.0, 145.0]
 uwerr(a, wpm)
-println(a)
+println("default:                   ", a, " (tauint = ", taui(a, 1233), ")")
 
 # Fix the summation window to 1 (i.e. uncorrelated data)
 wpm[1233] = [1.0, -1.0, -1.0, -1.0]
 uwerr(a, wpm)
-println(a)
+println("uncorrelated:              ",  a, " (tauint = ", taui(a, 1233), ")")
 
 # Use stau = 1.5
 wpm[1233] = [-1.0, 1.5, -1.0, -1.0]
 uwerr(a, wpm)
-println(a)
+println("stau = 1.5:                ", a, " (tauint = ", taui(a, 1233), ")")
 
 # Use fixed window 15 and add tail with texp = 100.0
 wpm[1233] = [15.0, -1.0, -1.0, 100.0]
 uwerr(a, wpm)
-println(a)
+println("Fixed window 15, texp=100: ", a, " (tauint = ", taui(a, 1233), ")")
 
 # Sum up to the point that the signal in Gamma is 
 # 1.5 times the error and add a tail with texp = 30.0
 wpm[1233] = [-1.0, -1.0, 1.5, 30.0]
 uwerr(a, wpm)
-println(a)
+println("signal/noise=1.5, texp=30: ", a, " (tauint = ", taui(a, 1233), ")")
 ```
 """
 uwerr(a::uwreal, wpm::Dict{Int64,Vector{Float64}}) = ADerrors.uwerror(a::uwreal, wsg, wpm)
 uwerr(a::uwreal) = ADerrors.uwerror(a::uwreal, wsg, empt)
 
+
+"""
+    cov(a::Vector{uwreal}[, wpm::Dict{Int64,Vector{Float64}}])
+
+Determine the covariance matrix between the vector of observables `a[:]`. 
+```@example
+using ADerrors, LinearAlgebra # hide
+a = uwreal([1.3, 0.01], 1) # 1.3 +/- 0.01
+b = uwreal([5.3, 0.23], 2) # 5.3 +/- 0.23
+uwerr(a)
+uwerr(b)
+
+x = [a+b, a-b]
+mat = cov(x)
+println("Covariance: ", mat[1,1], " ", mat[1,2])
+println("            ", mat[2,1], " ", mat[2,2])
+println("Check (should be zero): ",  mat[1,1] - mat[2,2])
+println("Check (should be zero): ",  mat[1,2] - (err(a)^2-err(b)^2))
+```
+
+# Case of Monte Carlo data
+
+An optional parameter `wpm` can be used to choose the summation window for the relevant autocorrelation functions. The situation is completely analogous to the case of error analysis of single variables.
+"""
 cov(a::Vector{uwreal}) = cov(a::Vector{uwreal}, wsg, empt)
 cov(a::Vector{uwreal}, wpm::Dict{Int64,Vector{Float64}}) = cov(a::Vector{uwreal}, wsg, wpm::Dict{Int64,Vector{Float64}})
 

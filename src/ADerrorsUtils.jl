@@ -9,6 +9,33 @@
 ### created: Fri Jun 26 19:30:27 2020
 ###                               
 
+"""
+    root_error(fnew::Function, x0::Float64, data::Vector{uwreal}) 
+
+Returns `x` such that `fnew(x, data) = 0` (i.e. a root of the function). The error in `data` is propagated to the root position `x`.
+```@example
+using ADerrors # hide
+# First define some arbitrary data
+data = Vector{uwreal}(undef, 3)
+data[1] = uwreal([1.0, 0.2],   120)
+data[2] = uwreal([1.2, 0.023], 121)
+data[3] = uwreal(rand(1000),   122)
+
+# Now define a function
+f(x, p) = x + p[1]*x + cos(p[2]*x+p[3])
+
+# Find its root using x0=1.0 as initial
+# guess of the position of the root
+x = root_error(f, 1.0, data)
+uwerr(x)
+println("Root: ", x)
+
+# Check
+z = f(x, data)
+uwerr(z)
+println("Better be zero (with zero error): ", z)
+```
+"""
 function root_error(fnew::Function, x::Float64,
                     data::Vector{uwreal}) 
 
@@ -16,13 +43,20 @@ function root_error(fnew::Function, x::Float64,
         return fnew(x[1], x[2:end])
     end
     xv = zeros(Float64, length(data)+1)
-    xv[1] = x
     for i in 1:length(data)
         xv[i+1] = data[i].mean
     end
-    grad = ForwardDiff.gradient(fvec, xv)
 
-    return addobs(data, -grad[2:end]./grad[1], x)
+    xdt   = @view xv[2:end]
+    f     = x -> fnew(x, xdt)
+    D(f)  = x -> ForwardDiff.derivative(f,float(x))
+    xv[1] = Roots.find_zero((f,D(f)), x, Roots.Newton()) 
+
+    cfg   = GradientConfig(fvec, xv, Chunk{2}());
+    grad  = ForwardDiff.gradient(fvec, xv, cfg)
+    gw    = @view grad[2:end]
+
+    return addobs(data, -gw ./ grad[1], xv[1])
 end
 
 function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Vector{Float64})
@@ -64,6 +98,32 @@ function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Array{Float64,
     return trcov(Px, data)
 end
 
+@doc raw"""
+    chiexp(chisq::Function,
+                xp::Vector{Float64}, 
+                data::Vector{uwreal};
+                W = Vector{Float64}())
+
+Given a ``\chi^2(p, d)``, function of the fit parameters `p[:]` and the data `d[:]`, compute the expected value of the ``\chi^2(p, d)``.
+
+### Arguments
+
+- `chisq`: Must be a function of two vectors (i.e. `chisq(p::Vector, d::Vector)`). The function is assumed to have the form
+
+``\chi^2(p, d) = \sum_i [d_i - f_i(p)]W_{ij}[d_j - f_j(p)]``
+
+where the function ``f_i(p)`` is an arbitrary function of the fit parameters. In simple words, the function is assumed to be quadratic in the data.
+- `xp`: A vector of `Float64`. The value of the fit parameters at the minima.
+- `data`: A vector of `uwreal`. The data whose fluctuations enter in the evaluation of the `chisq`.
+- `W`: A matrix. The weights that enter in the evaluation of the `chisq` function. If a vector is passed, the matrix is assumed to be diagonal (i.e. **uncorrelated** fit). If no weights are passed, the routines assumes that `W` is diagonal with entries given by the inverse errors squared of the data (i.w. the `chisq` is weighted with the errors of the data). 
+
+### Example 
+```@example
+using ADerrors # hide
+
+```
+
+"""
 function chiexp(chisq::Function,
                 xp::Vector{Float64}, 
                 data::Vector{uwreal};

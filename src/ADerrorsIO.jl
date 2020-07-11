@@ -2,7 +2,7 @@
 function find_mcid(a::uwreal, mcid::Int64)
 
     if (length(a.cfd) == 0)
-        return 0
+        return nothing
     else
         for i in 1:length(a.ids)
             if (a.ids[i] == mcid)
@@ -11,53 +11,214 @@ function find_mcid(a::uwreal, mcid::Int64)
         end
     end
     
-    return 0
+    return nothing
 end
 
-err(a::uwreal)              = a.err
-value(a::uwreal)            = a.mean
-derror(a::uwreal)           = a.derr
+"""
+    err(a::uwreal)
 
+Returns the error of the `uwreal` variable `a`. It is assumed that `uwerr` has been run on the variable so that an error is available. Otherwise an error message is printed.
+```@example
+using ADerrors # hide
+a = uwreal([1.2, 0.2], 12)   # a = 1.2 +/- 0.2
+uwerr(a)
+println("a has error: ", err(a))
+```
+"""
+function err(a::uwreal)
+    if (length(a.cfd) == 0)
+        error("No error available... maybe run uwerr")
+    end
+    return a.err
+end
+"""
+    value(a::uwreal)
+
+Returns the (mean) value of the `uwreal` variable `a`
+```@example
+using ADerrors # hide
+a = uwreal([1.2, 0.2], 12)   # a = 1.2 +/- 0.2
+uwerr(a)
+println("a has central value: ", value(a))
+```
+"""
+value(a::uwreal)            = a.mean
+"""
+    derror(a::uwreal)
+
+Returns an estimate of teh error of the error of the `uwreal` variable `a`. It is assumed that `uwerr` has been run on the variable so that an error is available. Otherwise an error message is printed.
+```@example
+using ADerrors # hide
+a = uwreal([1.2, 0.2], 12)   # a = 1.2 +/- 0.2
+uwerr(a)
+println("a has error of the error: ", derror(a))
+```
+"""
+function derror(a::uwreal)
+    if (length(a.cfd) == 0)
+        error("No error available... maybe run uwerr")
+    end
+    return a.derr
+end
+
+"""
+    taui(a::uwreal, id::Int64)
+
+Returns the value of tauint for the ensemble `id`. It is assumed that `uwerr` has been run on the variable and that `id` contributes to the observable `a`. Otherwise an error message is printed.
+```@example
+using ADerrors # hide
+# Generate some correlated data
+eta  = randn(1000)
+x    = Vector{Float64}(undef, 1000)
+x[1] = 0.0
+for i in 2:1000
+    x[i] = x[i-1] + eta[i]
+    if abs(x[i]) > 1.0
+        x[i] = x[i-1]
+    end
+end
+
+a = uwreal(x.^2, 666)
+uwerr(a)
+println("Error analysis result: ", a, " (tauint = ", taui(a, 666), ")")
+```
+"""
 function taui(a::uwreal,   mcid::Int64)
     idx = find_mcid(a, mcid)
-    if (idx == 0)
-        return 0.5
+    if (idx == nothing)
+        error("No error available... maybe run uwerr")
     else
         return a.cfd[idx].taui
     end
 end
 
+"""
+    dtaui(a::uwreal, id::Int64)
+
+Returns an estimate on the error of tauint for the ensemble `id`. It is assumed that `uwerr` has been run on the variable and that `id` contributes to the observable `a`. Otherwise an error message is printed.
+```@example
+using ADerrors # hide
+# Generate some correlated data
+eta  = randn(1000)
+x    = Vector{Float64}(undef, 1000)
+x[1] = 0.0
+for i in 2:1000
+    x[i] = x[i-1] + eta[i]
+    if abs(x[i]) > 1.0
+        x[i] = x[i-1]
+    end
+end
+
+a = uwreal(x.^2, 666)
+uwerr(a)
+println("Error analysis result: ", a, 
+        " (tauint = ", taui(a, 666), " +/- ", dtaui(a, 666), ")")
+```
+"""
 function dtaui(a::uwreal,  mcid::Int64)
     idx = find_mcid(a, mcid)
-    if (idx == 0)
-        return 0.0
+    if (idx == nothing)
+        error("No error available... maybe run uwerr")
     else
         return a.cfd[idx].dtaui
     end
 end
 
+"""
+    window(a::uwreal, id::Int64)
+
+Returns the summation window for the ensemble `id`. It is assumed that `uwerr` has been run on the variable and that `id` contributes to the observable `a`. Otherwise an error message is printed.
+```@example
+using ADerrors # hide
+# Generate some correlated data
+eta  = randn(1000)
+x    = Vector{Float64}(undef, 1000)
+x[1] = 0.0
+for i in 2:1000
+    x[i] = x[i-1] + eta[i]
+    if abs(x[i]) > 1.0
+        x[i] = x[i-1]
+    end
+end
+
+a = uwreal(x.^2, 666)
+uwerr(a)
+println("Error analysis result: ", a, 
+        " (window = ", window(a, 666), ")")
+```
+"""
 function window(a::uwreal, mcid::Int64)
     idx = find_mcid(a, mcid)
-    if (idx == 0)
-        return 0
+    if (idx == nothing)
+        error("No error available... maybe run uwerr")
     else
         return a.cfd[idx].iw
     end
 end
 
+"""
+    rho(a::uwreal, id::Int64)
+
+Returns the normalized autocorrelation function of `a` for the ensemble `id`. It is assumed that `uwerr` has been run on the variable and that `id` contributes to the observable `a`. Otherwise an error message is printed.
+```@example
+using ADerrors # hide
+# Generate some correlated data
+eta  = randn(1000)
+x    = Vector{Float64}(undef, 1000)
+x[1] = 0.0
+for i in 2:1000
+    x[i] = x[i-1] + eta[i]
+    if abs(x[i]) > 1.0
+        x[i] = x[i-1]
+    end
+end
+
+a = uwreal(x.^2, 666)
+uwerr(a)
+v = rho(a, 666)
+for i in 1:length(v)
+    println(i, " ", v[i])
+end
+```
+"""
 function rho(a::uwreal, mcid::Int64)
     idx = find_mcid(a, mcid)
-    if (idx == 0)
-        return [1.0]
+    if (idx == nothing)
+        error("No error available... maybe run uwerr")
     else
         return a.cfd[idx].gamm ./ a.cfd[idx].gamm[1]
     end
 end
 
+"""
+    rho(a::uwreal, id::Int64)
+
+Returns an estimate of the error on the normalized autocorrelation function of `a` for the ensemble `id`. It is assumed that `uwerr` has been run on the variable and that `id` contributes to the observable `a`. Otherwise an error message is printed.
+```@example
+using ADerrors # hide
+# Generate some correlated data
+eta  = randn(1000)
+x    = Vector{Float64}(undef, 1000)
+x[1] = 0.0
+for i in 2:1000
+    x[i] = x[i-1] + eta[i]
+    if abs(x[i]) > 1.0
+        x[i] = x[i-1]
+    end
+end
+
+a = uwreal(x.^2, 666)
+uwerr(a)
+v  =  rho(a, 666)
+dv = drho(a, 666)
+for i in 1:length(v)
+    println(i, " ", v[i], " +/- ", dv[i])
+end
+```
+"""
 function drho(a::uwreal, mcid::Int64)
-    idx = find_mcid(a, mcid)
-    if (idx == 0)
-        return [0.0]
+    if (idx == nothing)
+        error("No error available... maybe run uwerr")
     else
         return a.cfd[idx].drho
     end
@@ -219,11 +380,11 @@ function details(a::uwreal, ws::wspace, io::IO=stdout, names::Dict{Int64, String
         ip = sortperm(v, rev=true)
         for i in 1:length(a.cfd)
             idx  = ws.map_ids[a.ids[ip[i]]]
-            nd   = ws.fluc[idx].nd
+            sndt = join(ws.fluc[idx].ivrep, ",")
             sid = truncate_ascii(get(names, a.ids[ip[i]], string(a.ids[ip[i]])), ntrunc)
-            if (nd > 1)
-                Printf.@printf("  #  %45s %6.2f   %10d\n",
-                        sid, 100.0 .* a.cfd[ip[i]].var ./ a.err^2, nd)
+            if (ws.fluc[idx].nd > 1)
+                Printf.@printf("  #  %45s %6.2f   %s\n",
+                        sid, 100.0 .* a.cfd[ip[i]].var ./ a.err^2, sndt)
             else
                 Printf.@printf("  #  %45s %6.2f            -\n",
                         sid, 100.0 .* a.cfd[ip[i]].var ./ a.err^2)
@@ -236,6 +397,60 @@ end
 
 details(a::uwreal; io::IO=stdout, names::Dict{Int64, String} = Dict{Int64, String}()) = details(a, wsg, io, names)
 
+"""
+    read_uwreal(fb)
+
+Given a `BDIO` file handler `fb`, this routine returns the observable stored in the current record.
+```@example
+using ADerrors # hide
+using BDIO
+a = uwreal(rand(2000), 12)
+
+fb = BDIO_open("/tmp/foo.bdio", "w", "Test file")
+write(a, fb, 8)
+BDIO_close(fb)
+
+# Open the file and move to first record
+fb = BDIO_open("/tmp/foo.bdio", "r")
+BDIO_seek!(fb)
+
+# Read observable
+b = read_uwreal(fb)
+
+# Check
+c = a - b
+uwerr(c)
+println("Better be zero: ", c)
+```
+"""
 read_uwreal(fb)  = read_bdio(fb, ADerrors.wsg)
+
+"""
+    write_uwreal(p::uwreal, fb, iu::Int)
+
+Given a `BDIO` file handler `fb`, this writes the observable `p` in a BDIO resord with user info `iu`.
+```@example
+using ADerrors # hide
+using BDIO
+a = uwreal(rand(2000), 12)
+
+# Create a BDIO file and write a with user info 8.
+fb = BDIO_open("/tmp/foo.bdio", "w", "Test file")
+write(a, fb, 8)
+BDIO_close(fb)
+
+# Open the file and move to first record
+fb = BDIO_open("/tmp/foo.bdio", "r")
+BDIO_seek!(fb)
+
+# Read observable
+b = read_uwreal(fb)
+
+# Check
+c = a - b
+uwerr(c)
+println("Better be zero: ", c)
+```
+"""
 write_uwreal(p::uwreal, fb, iu::Int) = write_bdio(p::uwreal, fb, iu::Int, ADerrors.wsg)
 

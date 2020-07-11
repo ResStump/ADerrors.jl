@@ -1,6 +1,7 @@
+using ADerrors
 
 a = uwreal([1.0, 0.1], 1)
-b = uwreal([0.5, 0.023], 23)
+b = uwreal(rand(10000), 23)
 
 c = 1.0 + sin(a+b)
 d = sin(a)*cos(b) + cos(a)*sin(b) - 3.0
