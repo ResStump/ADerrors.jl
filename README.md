@@ -23,6 +23,15 @@ The package in not in the general registry. Still one can use the package manage
 julia> import Pkg
 (v1.1) pkg> add https://gitlab.ift.uam-csic.es/alberto/aderrors.jl
 ```
+## Features
+
+- **Exact** linear error propagation, even in iterative algorithms
+  (i.e. error propagation in fit parameters).
+- Handles data from **any number of ensembles** (i.e. simulations with
+  different parameters).
+- Support for **replicas** (i.e. several runs with the same simulation
+  parameters). 
+- Irrelagular MC measurements are handled transparently.
 
 ## Tutorial
 
