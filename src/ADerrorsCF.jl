@@ -259,8 +259,10 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
 
                 gwin  = view(a.cfd[j].gamm, 2:iw)
                 dbias = a.cfd[j].gamm[1] + 2.0*sum(gwin)
-                a.cfd[j].gamm .= a.cfd[j].gamm .+ dbias/nd_eff
-
+                if (dbias > 0.0)
+                    a.cfd[j].gamm .= a.cfd[j].gamm .+ dbias/nd_eff
+                end
+                    
                 a.cfd[j].drho = zeros(nt)
                 if (a.cfd[j].gamm[1] != 0.0)
                     @inbounds for i in 1:nt
@@ -290,7 +292,7 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
         end
     end
 
-    
+    id_neg_taui = Vector{Int64}()
     a.err  = 0.0
     a.derr = 0.0
     for j in 1:nid
@@ -312,50 +314,66 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                 iw  = 0
             else
                 wp = zeros(4)
-                wp = get(wpm, a.ids[j], [-1.0,-1.0,-1.0,-1.0])
-                if (wp[1] > 0.0)
-                    a.cfd[j].iw = round(wp[1])
-                elseif (wp[2] > 0.0)
-                    a.cfd[j].iw = wopt_ulli(nd_eff, wp[2], a.cfd[j].gamm)
-                end
-                
-                if (wp[3] > 0.0)
-                    iw = 1
-                    for k in 2:nt
-                        if (a.cfd[j].drho[k]*wp[3] > a.cfd[j].gamm[k]/a.cfd[j].gamm[1])
-                            iw = k-1
-                            break
-                        end
+                if haskey(wpm, a.ids[j]) 
+                    wp = get(wpm, a.ids[j], [-1.0,-1.0,-1.0,-1.0])
+                    if (wp[1] > 0.0)
+                        a.cfd[j].iw = round(wp[1])
+                    elseif (wp[2] > 0.0)
+                        a.cfd[j].iw = wopt_ulli(nd_eff, wp[2], a.cfd[j].gamm)
                     end
-                    a.cfd[j].iw = iw
-                end
-
-                if (wp[4] > 0.0)
-                    texp = wp[4]/ibn
+                    
+                    if (wp[3] > 0.0)
+                        iw = 1
+                        for k in 2:nt
+                            if (a.cfd[j].drho[k]*wp[3] > a.cfd[j].gamm[k]/a.cfd[j].gamm[1])
+                                iw = k-1
+                                break
+                            end
+                        end
+                        a.cfd[j].iw = iw
+                    end
+                    
+                    if (wp[4] > 0.0)
+                        texp = wp[4]/ibn
+                    else
+                        texp = 0.0
+                    end
                 else
                     texp = 0.0
+                    a.cfd[j].iw = wopt_ulli(nd_eff, DEFAULT_STAU, a.cfd[j].gamm)
                 end
                 iw = a.cfd[j].iw
-                
+                    
                 gwin  = view(a.cfd[j].gamm, 2:iw)
                 vti = 0.5 + sum(gwin)/a.cfd[j].gamm[1]
                 a.cfd[j].dtaui = sqrt(vti^2 * (4.0*iw-2.0*vti+2.0)/nd_eff)
                 a.cfd[j].taui  = vti + texp*a.cfd[j].gamm[iw+1]/a.cfd[j].gamm[1]
             end
             
-            a.cfd[j].var = a.cfd[j].gamm[1] * 2.0*a.cfd[j].taui/nd_eff
+            if (a.cfd[j].taui > 0.0)
+                a.cfd[j].var = a.cfd[j].gamm[1] * 2.0*a.cfd[j].taui/nd_eff
+            else
+                push!(id_neg_taui, a.ids[j])
+            end
         end
 
         a.err = a.err + a.cfd[j].var
         if (iw > 1)
-            a.derr = a.derr + vti*(a.cfd[j].iw-0.5)/nd_eff
+            if vti*(a.cfd[j].iw-0.5)/nd_eff > 0.0
+                a.derr = a.derr + vti*(a.cfd[j].iw-0.5)/nd_eff
+            end
         end
     end
-    
-    a.err  = sqrt(a.err)
-    a.derr = sqrt(a.derr)
 
-    return a.err
+    if (length(id_neg_taui) == 0)
+        a.err  = sqrt(a.err)
+        a.derr = sqrt(a.derr)
+    else
+        println(stderr, "ID's with negative tau_int: ", id_neg_taui)
+        error("Error analysis failed for some ID's. Choose your window more carefully")
+    end
+
+    return nothing
 end
 
 function unique_ids_multi(a::Vector{uwreal}, ws::wspace)
@@ -682,12 +700,12 @@ uwreal(x::Float64) = ADerrors.uwreal(x, 0.0, 0.0,
 uwreal(data::Vector{Float64}, id::Int64) = ADerrors.uwcls(data::Vector{Float64}, id::Int64, wsg, [length(data)])
 uwreal(data::Vector{Float64}, id::Int64, iv::Vector{Int64}) = ADerrors.uwcls(data::Vector{Float64}, id::Int64, wsg, iv)
 uwreal(data::Vector{Float64}, id::Int64, idm::Vector{Int64}, nms::Int64) = ADerrors.uwcls_gaps(data::Vector{Float64},
-                    id::Int64, ws::wspace,
+                    id::Int64, wsg,
                     [nms],
                     idm::Vector{Int64},
                     nms::Int64)
 uwreal(data::Vector{Float64}, id::Int64, iv::Vector{Int64}, idm::Vector{Int64}, nms::Int64) = ADerrors.uwcls_gaps(data::Vector{Float64},
-                    id::Int64, ws::wspace,
+                    id::Int64, wsg,
                     iv::Vector{Int64},
                     idm::Vector{Int64},
                     nms::Int64)

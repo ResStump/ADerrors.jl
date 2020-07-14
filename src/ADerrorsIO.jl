@@ -85,7 +85,6 @@ uwerr(a)
 println("Error analysis result: ", a, " (tauint = ", taui(a, 666), ")")
 ```
 """
-
 function taui(a::uwreal,   mcid::Int64)
     idx = find_mcid(a, mcid)
     if (idx == nothing)
@@ -118,7 +117,6 @@ println("Error analysis result: ", a,
         " (tauint = ", taui(a, 666), " +/- ", dtaui(a, 666), ")")
 ```
 """
-
 function dtaui(a::uwreal,  mcid::Int64)
     idx = find_mcid(a, mcid)
     if (idx == nothing)
@@ -221,6 +219,7 @@ end
 ```
 """
 function drho(a::uwreal, mcid::Int64)
+    idx = find_mcid(a, mcid)
     if (idx == nothing)
         error("No error available... maybe run uwerr")
     else
