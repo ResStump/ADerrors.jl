@@ -802,6 +802,25 @@ An optional parameter `wpm` can be used to choose the summation window for the r
 cov(a::Vector{uwreal}) = cov(a::Vector{uwreal}, wsg, empt)
 cov(a::Vector{uwreal}, wpm::Dict{Int64,Vector{Float64}}) = cov(a::Vector{uwreal}, wsg, wpm::Dict{Int64,Vector{Float64}})
 
+@doc raw"""
+    trcov(M::Array{Float64, 2}, a::Vector{uwreal})
+
+Given a vector of `uwreal`, `a[:]` and a two dimensional array `M`, this routine computes  ``{\rm tr}(MC)``, where ``C_{ij} = {\rm cov}(a[i], a[j])``. 
+```@example
+using ADerrors, LinearAlgebra # hide
+a = uwreal([1.3, 0.01], 1) # 1.3 +/- 0.01
+b = uwreal([5.3, 0.23], 2) # 5.3 +/- 0.23
+c = uwreal(rand(2000), 3)
+
+x = [a+b+sin(c), a-b+cos(c), c-b/a]
+M = [1.0 0.2 0.1
+     0.2 2.0 0.3
+     0.1 0.3 1.0]
+
+mcov = cov(x)
+d = tr(mcov * M)
+println("Better be zero: ", d -trcov(M, x))
+"""
 trcov(M, a::Vector{uwreal}) = trcov(M, a::Vector{uwreal}, wsg, empt)
 trcov(M, a::Vector{uwreal}, wpm::Dict{Int64,Vector{Float64}}) = trcov(M, a::Vector{uwreal}, wsg, wpm::Dict{Int64,Vector{Float64}})
 
@@ -813,5 +832,18 @@ trcorr(M, a::Vector{uwreal},
        wpm::Dict{Int64,Vector{Float64}}) = trcorr(M, a::Vector{uwreal}, wsg, wpm::Dict{Int64,Vector{Float64}}, Vector{Float64}())
 
 
+"""
+    neid(a::uwreal)
+
+Returns the number of different ensemble ID's contributing to `a`
+```@example
+using ADerrors # hide
+a = uwreal([1.2, 0.2], 12)   # a = 1.2 +/- 0.2
+b = uwreal([7.2, 0.5], 13)   # a = 7.2 +/- 0.5
+
+c = a*b
+println("Number od ID contributing to c: ", neid(a))
+```
+"""
 neid(a::uwreal)  = ADerrors.unique_ids!(a::uwreal, wsg)
 

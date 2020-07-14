@@ -31,6 +31,7 @@ function err(a::uwreal)
     end
     return a.err
 end
+
 """
     value(a::uwreal)
 
@@ -43,6 +44,7 @@ println("a has central value: ", value(a))
 ```
 """
 value(a::uwreal)            = a.mean
+
 """
     derror(a::uwreal)
 
@@ -83,6 +85,7 @@ uwerr(a)
 println("Error analysis result: ", a, " (tauint = ", taui(a, 666), ")")
 ```
 """
+
 function taui(a::uwreal,   mcid::Int64)
     idx = find_mcid(a, mcid)
     if (idx == nothing)
@@ -115,6 +118,7 @@ println("Error analysis result: ", a,
         " (tauint = ", taui(a, 666), " +/- ", dtaui(a, 666), ")")
 ```
 """
+
 function dtaui(a::uwreal,  mcid::Int64)
     idx = find_mcid(a, mcid)
     if (idx == nothing)
@@ -357,8 +361,8 @@ function details(a::uwreal, ws::wspace, io::IO=stdout, names::Dict{Int64, String
     end
 
     if (length(a.cfd) > 0) 
-        println(a.mean, " +/- ", a.err)
-        println(" ## Number of error sources: ", length(a.ids))
+        println(io, a.mean, " +/- ", a.err)
+        println(io, " ## Number of error sources: ", length(a.ids))
 
         n = 0
         for i in 1:length(a.cfd)
@@ -367,8 +371,8 @@ function details(a::uwreal, ws::wspace, io::IO=stdout, names::Dict{Int64, String
                 n = n + 1
             end
         end
-        println(" ## Number of MC ids       : ", n)
-        println(" ## Contribution to error  :               Ensemble  [%]     [MC length]")
+        println(io, " ## Number of MC ids       : ", n)
+        println(io, " ## Contribution to error  :               Ensemble  [%]     [MC length]")
 
         
         truncate_ascii(s::String,n::Int) = s[1:min(sizeof(s),n)]
@@ -383,15 +387,15 @@ function details(a::uwreal, ws::wspace, io::IO=stdout, names::Dict{Int64, String
             sndt = join(ws.fluc[idx].ivrep, ",")
             sid = truncate_ascii(get(names, a.ids[ip[i]], string(a.ids[ip[i]])), ntrunc)
             if (ws.fluc[idx].nd > 1)
-                Printf.@printf("  #  %45s %6.2f   %s\n",
+                Printf.@printf(io, "  #  %45s %6.2f   %s\n",
                         sid, 100.0 .* a.cfd[ip[i]].var ./ a.err^2, sndt)
             else
-                Printf.@printf("  #  %45s %6.2f            -\n",
+                Printf.@printf(io, "  #  %45s %6.2f            -\n",
                         sid, 100.0 .* a.cfd[ip[i]].var ./ a.err^2)
-            end
+        '    end
         end
     else
-        print(a.mean, " (Error not available... maybe run uwerr)")
+        print(io, a.mean, " (Error not available... maybe run uwerr)")
     end
 end
 
@@ -428,13 +432,13 @@ read_uwreal(fb)  = read_bdio(fb, ADerrors.wsg)
 """
     write_uwreal(p::uwreal, fb, iu::Int)
 
-Given a `BDIO` file handler `fb`, this writes the observable `p` in a BDIO resord with user info `iu`.
+Given a `BDIO` file handler `fb`, this writes the observable `p` in a BDIO record with user info `iu`.
 ```@example
 using ADerrors # hide
 using BDIO
 a = uwreal(rand(2000), 12)
 
-# Create a BDIO file and write a with user info 8.
+# Create a BDIO file and write observable with user info 8.
 fb = BDIO_open("/tmp/foo.bdio", "w", "Test file")
 write(a, fb, 8)
 BDIO_close(fb)

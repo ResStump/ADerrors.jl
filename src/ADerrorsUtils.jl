@@ -106,7 +106,7 @@ end
 
 Given a ``\chi^2(p, d)``, function of the fit parameters `p[:]` and the data `d[:]`, compute the expected value of the ``\chi^2(p, d)``.
 
-### Arguments
+#### Arguments
 
 - `chisq`: Must be a function of two vectors (i.e. `chisq(p::Vector, d::Vector)`). The function is assumed to have the form
 
@@ -117,10 +117,38 @@ where the function ``f_i(p)`` is an arbitrary function of the fit parameters. In
 - `data`: A vector of `uwreal`. The data whose fluctuations enter in the evaluation of the `chisq`.
 - `W`: A matrix. The weights that enter in the evaluation of the `chisq` function. If a vector is passed, the matrix is assumed to be diagonal (i.e. **uncorrelated** fit). If no weights are passed, the routines assumes that `W` is diagonal with entries given by the inverse errors squared of the data (i.w. the `chisq` is weighted with the errors of the data). 
 
-### Example 
+#### Example 
 ```@example
-using ADerrors # hide
+using ADerrors, Distributions # hide
 
+# Generate correlated samples with average 0.1
+npt = 12
+sig = zeros(npt, npt)
+dx  = zeros(npt)
+for i in 1:npt
+    dx[i]    = 0.01*i
+    sig[i,i] = dx[i]^2
+    for j in i+1:npt
+        sig[i,j] = 0.0001 - 0.000005*abs(i-j)
+        sig[j,i] = 0.0001 - 0.000005*abs(i-j)
+    end
+end
+dmv = MvNormal([0.1 for n in 1:npt], sig)
+vs  = rand(dmv, 1)
+
+# Create the uwreal data that we want to 
+# fit to a constant
+dt = cobs(vs[:,1], sig, [100+n for n in 1:npt])
+
+# Define the chi^2
+chisq(p, d) = sum( (d .- p[1]) .^ 2 ./ dx .^2 )
+
+# The result of an uncorrelated fit to a 
+# constant is the weighted average
+xp = [sum(value.(dt) ./ dx)/sum(1.0 ./ dx)]
+
+# Compare chi^2 and expected chi^2
+println("chi^2 / chi_exp^2: ", chisq(xp, value.(dt)), " / ", chiexp(chisq, xp, dt))
 ```
 
 """
@@ -168,6 +196,64 @@ function chiexp(chisq::Function,
     return cse
 end
 
+@doc raw"""
+
+    fit_error(chisq::Function, xp::Vector{Float64}, data::Vector{uwreal};
+                   W = Vector{Float64}(), chi_exp = true)
+
+Given a ``\chi^2(p, d)``, function of the fit parameters `p[:]` and the data `d[:]`, this routine return the fit parameters as `uwreal` type and optionally, the expected value of ``\chi^2(p, d)``.
+
+#### Arguments
+
+- `chisq`: Must be a function of two vectors (i.e. `chisq(p::Vector, d::Vector)`). To determine the fit parameters, the function can be arbitrary, but for the determination of the expected ``\chi^2(p, d)`` is assumed to have the form
+
+``\chi^2(p, d) = \sum_{ij} [d_i - f_i(p)]W_{ij}[d_j - f_j(p)]``
+
+where the function ``f_i(p)`` is an arbitrary function of the fit parameters. In simple words, the expected ``\chi^2(p, d)`` is determined assuming that the function ``\chi^2(p, d)`` is quadratic in the data.
+- `xp`: A vector of `Float64`. The value of the fit parameters at the minima.
+- `data`: A vector of `uwreal`. The data whose fluctuations enter in the evaluation of the `chisq`.
+- `W`: A matrix. The weights that enter in the evaluation of the `chisq` function. If a vector is passed, the matrix is assumed to be diagonal (i.e. **uncorrelated** fit). If no weights are passed, the routines assumes that `W` is diagonal with entries given by the inverse errors squared of the data (i.e. the `chisq` is weighted with the errors of the data). 
+- `chi_exp`: Bool type. If false, do not compute the expected ``\chi^2(p, d)``.
+
+#### Example 
+```@example
+using ADerrors, Distributions # hide
+
+# Generate correlated samples with average 0.1
+npt = 12
+sig = zeros(npt, npt)
+dx  = zeros(npt)
+for i in 1:npt
+    dx[i]    = 0.01*i
+    sig[i,i] = dx[i]^2
+    for j in i+1:npt
+        sig[i,j] = 0.0001 - 0.000005*abs(i-j)
+        sig[j,i] = 0.0001 - 0.000005*abs(i-j)
+    end
+end
+dmv = MvNormal([0.1 for n in 1:npt], sig)
+vs  = rand(dmv, 1)
+
+# Create the uwreal data that we want to 
+# fit to a constant
+dt = cobs(vs[:,1], sig, [100+n for n in 1:npt])
+
+# Define the chi^2
+chisq(p, d) = sum( (d .- p[1]) .^ 2 ./ dx .^2 )
+
+# The result of an uncorrelated fit to a 
+# constant is the weighted average
+xp = [sum(value.(dt) ./ dx)/sum(1.0 ./ dx)]
+
+
+# Propagate errors to the fit parameters and
+# determine the expected chi^2
+(fitp, csqexp) = fit_error(chisq, xp, dt)
+
+uwerr.(fitp)
+println("Fit parameter:     ", fitp[1])
+println("chi^2 / chi_exp^2: ", chisq(xp, value.(dt)), " / ", csqexp)
+"""
 function fit_error(chisq::Function,
                    xp::Vector{Float64}, 
                    data::Vector{uwreal};
@@ -190,8 +276,10 @@ function fit_error(chisq::Function,
     hess = Array{Float64}(undef, n+m, n+m)
     ForwardDiff.hessian!(hess, ccsq, xav, cfg)
     
-    hinv = LinearAlgebra.pinv(hess[1:n,1:n])
-    grad = - hinv[1:n,1:n] * hess[1:n,n+1:n+m]
+    hm = view(hess, 1:n, 1:n)
+    sm = view(hess, 1:n, n+1:n+m)
+    hinv = LinearAlgebra.pinv(hm)
+    grad = - hinv * sm
     
     param = addobs(data, grad, xp)
 
@@ -222,6 +310,40 @@ function fit_error(chisq::Function,
     return param, cse
 end
 
+@doc raw"""
+    int_error(fint::Function, a, b, p::Vector{uwreal})
+
+Returns an `uwreal` with the values of 
+
+``\int_a^b {\rm fint}(x; p)\, {\rm d}x``
+
+and the errors the parameters `p[:]` and (optionally) the limits of the intgeral (`a`, `b`).
+
+```@example
+using ADerrors, QuadGK, ForwardDiff
+
+# Average values and covariance from
+# https://inspirehep.net/literature/1477411
+# here we try to reproduce the result
+# Scale ratio = 21.86(42) Eq.5.6
+avg = [16.26, 0.12, -0.0038]
+Mcov = [0.478071 -0.176116 0.0135305
+        -0.176116 0.0696489 -0.00554431
+        0.0135305 -0.00554431 0.000454180]
+
+p = cobs(avg, Mcov, [1, 2001, 32])
+g1s = uwreal([2.6723, 0.0064], 4)
+g2s = 11.31
+
+fint(x, p) = - (p[1] + p[2]*x^2 + p[3]*x^4)/x^3
+g1 = sqrt(g1s)
+g2 = sqrt(g2s)
+sint = 2.0*exp(-int_error(fint, g1, g2, p))
+uwerr(sint)
+print("  From integral evaluation: ")
+details(sint)
+```
+"""
 function int_error(fint::Function,
                    a,
                    b,
