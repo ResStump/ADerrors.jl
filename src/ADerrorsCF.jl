@@ -821,7 +821,7 @@ cov(a::Vector{uwreal}) = cov(a::Vector{uwreal}, wsg, empt)
 cov(a::Vector{uwreal}, wpm::Dict{Int64,Vector{Float64}}) = cov(a::Vector{uwreal}, wsg, wpm::Dict{Int64,Vector{Float64}})
 
 @doc raw"""
-    trcov(M::Array{Float64, 2}, a::Vector{uwreal})
+     trcov(M::Array{Float64, 2}, a::Vector{uwreal})
 
 Given a vector of `uwreal`, `a[:]` and a two dimensional array `M`, this routine computes  ``{\rm tr}(MC)``, where ``C_{ij} = {\rm cov}(a[i], a[j])``. 
 ```@example
@@ -838,6 +838,7 @@ M = [1.0 0.2 0.1
 mcov = cov(x)
 d = tr(mcov * M)
 println("Better be zero: ", d -trcov(M, x))
+```
 """
 trcov(M, a::Vector{uwreal}) = trcov(M, a::Vector{uwreal}, wsg, empt)
 trcov(M, a::Vector{uwreal}, wpm::Dict{Int64,Vector{Float64}}) = trcov(M, a::Vector{uwreal}, wsg, wpm::Dict{Int64,Vector{Float64}})

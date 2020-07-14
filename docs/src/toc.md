@@ -1,5 +1,14 @@
 
+# Contents
+
+## Contents
+
 ```@contents
-Pages = ["index.md"]
+Pages = ["tutorial.md", "api.md"]
 Depth = 3
+```
+
+## Index 
+
+```@index
 ```

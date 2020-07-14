@@ -2,7 +2,8 @@ using Documenter, ADerrors
 
 makedocs(modules=[ADerrors], doctest=true,
          pages = [
-             "ADerrors" => "index.md",
+             "Getting Started" => "tutorial.md", 
+             "API" => "api.md",
              "Contents" => "toc.md"
              ], 
          sitename = "ADerrors.jl",

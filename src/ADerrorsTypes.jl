@@ -90,13 +90,13 @@ uwreal(v::Float64, prop::Vector{Bool}, der::Vector{Float64}) = uwreal(v, 0.0, 0.
 function Base.show(io::IO, a::uwreal)
     
     if (length(a.prop) == 0)
-        print(a.mean)
+        print(io, a.mean)
         return
     end
     
     if (length(a.cfd) > 0) 
-        print(a.mean, " +/- ", a.err)
+        print(io, a.mean, " +/- ", a.err)
     else
-        print(a.mean, " (Error not available... maybe run uwerr)")
+        print(io, a.mean, " (Error not available... maybe run uwerr)")
     end
 end

@@ -149,6 +149,7 @@ xp = [sum(value.(dt) ./ dx)/sum(1.0 ./ dx)]
 
 # Compare chi^2 and expected chi^2
 println("chi^2 / chi_exp^2: ", chisq(xp, value.(dt)), " / ", chiexp(chisq, xp, dt))
+```
 """
 function chiexp(chisq::Function,
                 xp::Vector{Float64}, 
