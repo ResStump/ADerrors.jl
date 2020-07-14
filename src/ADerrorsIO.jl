@@ -392,7 +392,7 @@ function details(a::uwreal, ws::wspace, io::IO=stdout, names::Dict{Int64, String
             else
                 Printf.@printf(io, "  #  %45s %6.2f            -\n",
                         sid, 100.0 .* a.cfd[ip[i]].var ./ a.err^2)
-        '    end
+            end
         end
     else
         print(io, a.mean, " (Error not available... maybe run uwerr)")
