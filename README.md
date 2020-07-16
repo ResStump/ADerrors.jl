@@ -37,5 +37,37 @@ julia> import Pkg
 
 It is better to start with the [Getting started](https://ific.uv.es/~alramos/docs/ADerrors/tutorial/) guide.
 
+# Alleviating time to first run
+
+`Julia` is well known for being slow the first time that you run some
+routines. On the first call to a function Julia not only runs the
+code, but also compiles it, making the first call slow.
+This problem can be alleviated in general with
+[PackageCompiler.jl](https://github.com/JuliaLang/PackageCompiler.jl). This
+is specially true for the case of `ADerrors` since most functions are
+type static. 
+
+As example, the file `extra/typical.jl` contains the most typical
+calls to `ADerrors`. One can execute this file telling julia to
+annotate the functions that are compiled
+```julia
+julia --trace-compile=precompile_aderrors.jl typical.jl
+```
+Now the functions annotated in `precompile_aderrors.jl` can be
+compiled and included in a `sysimage` that is autmatically loaded
+whenever you start Julia
+```julia
+julia> using PackageCompiler
+julia> PackageCompiler.create_sysimage(:ADerrors; precompile_statements_file="precompile_aderrors.jl", replace_default=true)
+```
+
+This will make `ADerrors` from the first call. Obviously you can tune
+the file `typical.jl` to your usage, or add other packages. Please
+note that packages included in the sysimage are locked to the versions
+of the sysimage. If you update `ADerrors` make sure to re-generate the
+sysimage. Probably is better to read [the documentation of
+PackageCompiler](https://julialang.github.io/PackageCompiler.jl/dev/sysimages/)
+in order to fully understand the drawbacks.
+
 
 
