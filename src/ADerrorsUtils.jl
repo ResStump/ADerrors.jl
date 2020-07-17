@@ -167,8 +167,12 @@ function chiexp(chisq::Function,
         xav[i] = data[i-n].mean
     end
     ccsq(x::Vector) = chisq(view(x, 1:n), view(x, n+1:n+m)) 
-    cfg = ForwardDiff.HessianConfig(ccsq, xav, Chunk{8}());
-
+    if (n+m < 4)
+        cfg = ForwardDiff.HessianConfig(ccsq, xav, Chunk{1}());
+    else
+        cfg = ForwardDiff.HessianConfig(ccsq, xav, Chunk{4}());
+    end
+        
     hess = Array{Float64}(undef, n+m, n+m)
     ForwardDiff.hessian!(hess, ccsq, xav, cfg)
         
@@ -271,7 +275,11 @@ function fit_error(chisq::Function,
     end
 
     ccsq(x::Vector) = chisq(x[1:n], x[n+1:n+m])
-    cfg = ForwardDiff.HessianConfig(ccsq, xav, Chunk{8}());
+    if (n+m < 4)
+        cfg = ForwardDiff.HessianConfig(ccsq, xav, Chunk{1}());
+    else
+        cfg = ForwardDiff.HessianConfig(ccsq, xav, Chunk{4}());
+    end
 
     hess = Array{Float64}(undef, n+m, n+m)
     ForwardDiff.hessian!(hess, ccsq, xav, cfg)
