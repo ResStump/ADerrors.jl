@@ -1,6 +1,5 @@
 # API
 
-
 ## Creating `uwerr` data types
 
 ```@docs
