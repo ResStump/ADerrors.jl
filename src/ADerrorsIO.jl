@@ -237,7 +237,7 @@ function drho(a::uwreal, mcid::Int64)
     end
 end
 
-function read_bdio(fb, ws::wspace)
+function read_bdio(fb, ws::wspace, mapids::Dict{Int64, Int64})
 
     dfoo = zeros(Float64, 1)
     ifoo = zeros(Int32, 1)
@@ -277,7 +277,8 @@ function read_bdio(fb, ws::wspace)
 
         dfl = zeros(Float64, nds[i])
         BDIO.BDIO_read(fb, dfl)
-        add_DB(dfl, convert(Int64, ids[i]), convert(Vector{Int64}, ivrep[is:ie]), ws)
+        id = convert(Int64, ids[i])
+        add_DB(dfl, get(mapids, id, id), convert(Vector{Int64}, ivrep[is:ie]), ws)
         
         is = ie + 1
     end
@@ -411,9 +412,9 @@ end
 details(a::uwreal; io::IO=stdout, names::Dict{Int64, String} = Dict{Int64, String}()) = details(a, wsg, io, names)
 
 """
-    read_uwreal(fb)
+    read_uwreal(fb[, map_ids::Dict{Int64, Int64}])
 
-Given a `BDIO` file handler `fb`, this routine returns the observable stored in the current record.
+Given a `BDIO` file handler `fb`, this routine returns the observable stored in the current record. Optionally, ensemble ID stored in the file can be changed at read time by passing a dictionary `map_ids`
 ```@example
 using ADerrors # hide
 using BDIO
@@ -428,15 +429,17 @@ fb = BDIO_open("/tmp/foo.bdio", "r")
 BDIO_seek!(fb)
 
 # Read observable
-b = read_uwreal(fb)
+changeID_12_by_120 = Dict(12 => 120)
+b = read_uwreal(fb, changeID_12_by_120)
 
 # Check
 c = a - b
 uwerr(c)
-println("Better be zero: ", c)
+print("Better be zero: ")
+details(c)
 ```
 """
-read_uwreal(fb)  = read_bdio(fb, ADerrors.wsg)
+read_uwreal(fb, mapids::Dict{Int64, Int64} = Dict{Int64, Int64}())  = read_bdio(fb, ADerrors.wsg, mapids)
 
 """
     write_uwreal(p::uwreal, fb, iu::Int)
