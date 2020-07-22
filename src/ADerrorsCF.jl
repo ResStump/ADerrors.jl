@@ -70,15 +70,22 @@ function add_DB(delta::Vector{Float64}, id::Int64, iv::Vector{Int64}, ws::wspace
         end
     else
         if (sum(iv) != length(delta))
+            println(stderr, "ID:          ", id)
             ArgumentError("Sum of replica length does not match number of measurements")
         end
         ws.nob += 1
         push!(ws.map_nob, id)
         if (haskey(ws.map_ids, id))
             if (length(delta) != ws.fluc[ws.map_ids[id]].nd)
+                println(stderr, "ID:         ", id)
+                println(stderr, "DB  length: ", ws.fluc[ws.map_ids[id]].nd)
+                println(stderr, "obs length: ", length(delta))
                 error("Mistmatch in data length for the same ensemble ID")
             end
             if (iv != ws.fluc[ws.map_ids[id]].ivrep)
+                println(stderr, "ID:          ", id)
+                println(stderr, "DB  replica: ", ws.fluc[ws.map_ids[id]].ivrep)
+                println(stderr, "obs replica: ", iv)
                 error("Mistmatch in replica vector for the same ensemble ID")
             end
         else
