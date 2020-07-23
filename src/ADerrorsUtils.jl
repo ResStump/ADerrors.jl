@@ -321,14 +321,13 @@ end
 @doc raw"""
     int_error(fint::Function, a, b, p::Vector{uwreal})
 
-Returns an `uwreal` with the values of 
+Computes the integral
 
 ``\int_a^b {\rm fint}(x; p)\, {\rm d}x``
 
-and the errors the parameters `p[:]` and (optionally) the limits of the intgeral (`a`, `b`).
-
+The errors in the parameters `p[:]` and (optionally) in the limits of the intgeral (`a`, `b`) are propagated to an error of the integral. The result is returned as an `uwreal`.
 ```@example
-using ADerrors, QuadGK, ForwardDiff
+using ADerrors
 
 # Average values and covariance from
 # https://inspirehep.net/literature/1477411
