@@ -357,7 +357,7 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                 a.cfd[j].taui  = vti + texp*a.cfd[j].gamm[iw+1]/a.cfd[j].gamm[1]
             end
             
-            if (a.cfd[j].taui > 0.0)
+            if (a.cfd[j].taui >= 0.0)
                 a.cfd[j].var = a.cfd[j].gamm[1] * 2.0*a.cfd[j].taui/nd_eff
             else
                 push!(id_neg_taui, a.ids[j])
