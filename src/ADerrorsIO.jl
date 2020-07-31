@@ -293,26 +293,27 @@ function write_bdio(p::uwreal, fb, iu::Int, ws::wspace)
 
     BDIO.BDIO_write!(fb, [p.mean], true)
     BDIO.BDIO_write!(fb, [nid], true)
+    ntv = Vector{Int32}(undef, nid)
     for j in 1:nid
-        nd = convert(Int32, ws.fluc[ws.map_ids[p.ids[j]]].nd)
-        BDIO.BDIO_write!(fb, [nd], true)
+        ntv[j] = convert(Int32, ws.fluc[ws.map_ids[p.ids[j]]].nd)
     end
+    BDIO.BDIO_write!(fb, ntv, true)
 
     for j in 1:nid
-        nr = convert(Int32, length(ws.fluc[ws.map_ids[p.ids[j]]].ivrep))
-        BDIO.BDIO_write!(fb, [nr], true)
+        ntv[j] = convert(Int32, length(ws.fluc[ws.map_ids[p.ids[j]]].ivrep))
     end
+    BDIO.BDIO_write!(fb, ntv, true)
 
     for j in 1:nid
         BDIO.BDIO_write!(fb, convert(Vector{Int32}, ws.fluc[ws.map_ids[p.ids[j]]].ivrep), true)
     end
 
     BDIO.BDIO_write!(fb, convert(Vector{Int32}, p.ids), true)
-    
+
     for j in 1:nid
-        nt = maximum(ws.fluc[ws.map_ids[p.ids[j]]].ivrep)
-        BDIO.BDIO_write!(fb, [nt], true)
+        ntv[j] = convert(Int32, div(maximum(ws.fluc[ws.map_ids[p.ids[j]]].ivrep), 2))
     end
+    BDIO.BDIO_write!(fb, ntv, true)
 
     BDIO.BDIO_write!(fb, zeros(Float64, nid), true)
     BDIO.BDIO_write!(fb, [DEFAULT_STAU for n in 1:nid], true)
