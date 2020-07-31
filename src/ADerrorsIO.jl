@@ -310,14 +310,8 @@ function write_bdio(p::uwreal, fb, iu::Int, ws::wspace)
     BDIO.BDIO_write!(fb, convert(Vector{Int32}, p.ids), true)
     
     for j in 1:nid
-        for i in 1:length(p.prop)
-            if (p.prop[i] && (ws.map_nob[i] == p.ids[j]))
-                (nt,ip) = findmax(ws.fluc[i].ivrep)
-                nt = convert(Int32, div(nt, 2*ws.fluc[i].ibn))
-                BDIO.BDIO_write!(fb, [nt], true)
-                continue
-            end
-        end
+        nt = maximum(ws.fluc[ws.map_ids[p.ids[j]]].ivrep)
+        BDIO.BDIO_write!(fb, [nt], true)
     end
 
     BDIO.BDIO_write!(fb, zeros(Float64, nid), true)
