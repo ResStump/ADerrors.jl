@@ -1,10 +1,10 @@
 using ADerrors
 
 # Input of uwreal's
-a = uwreal(rand(1000), 1)
-b = uwreal([1.0, 0.1], 2)
+a = uwreal(rand(1000), "White noise")
+b = uwreal([1.0, 0.1], "Var with error")
 p = cobs([1.0, 2.0], [1.0 0.1;
-                      0.1 2.0], [3, 4])
+                      0.1 2.0], "Parameters")
 
 # Most common operations.
 # You might add something else if
@@ -58,7 +58,7 @@ y = [0.0802273592699947
  -0.05174734852593241
   0.1384913891139784
  -0.05211234898997283]
-dt = cobs(y, sig, [100+n for n in 1:npt])
+dt = cobs(y, sig, "Fit data")
 chisq(p, d) = sum( (d .- p[1]) .^ 2 ./ dx .^2 )
 xp = [sum(value.(dt) ./ dx)/sum(1.0 ./ dx)]
 (fitp, csqexp) = fit_error(chisq, xp, dt)
