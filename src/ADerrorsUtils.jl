@@ -17,9 +17,9 @@ Returns `x` such that `fnew(x, data) = 0` (i.e. a root of the function). The err
 using ADerrors # hide
 # First define some arbitrary data
 data = Vector{uwreal}(undef, 3)
-data[1] = uwreal([1.0, 0.2],   120)
-data[2] = uwreal([1.2, 0.023], 121)
-data[3] = uwreal(rand(1000),   122)
+data[1] = uwreal([1.0, 0.2],   "Var A")
+data[2] = uwreal([1.2, 0.023], "Var B")
+data[3] = uwreal(rand(1000),   "White noise ensemble")
 
 # Now define a function
 f(x, p) = x + p[1]*x + cos(p[2]*x+p[3])
@@ -33,7 +33,8 @@ println("Root: ", x)
 # Check
 z = f(x, data)
 uwerr(z)
-println("Better be zero (with zero error): ", z)
+print("Better be zero (with zero error): ")
+details(z)
 ```
 """
 function root_error(fnew::Function, x::Float64,
@@ -59,7 +60,7 @@ function root_error(fnew::Function, x::Float64,
     return addobs(data, -gw ./ grad[1], xv[1])
 end
 
-function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Vector{Float64})
+function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Vector{Float64}, wpm::Dict{Int64,Vector{Float64}})
 
     m = length(data)
     n = size(hess, 1) - m
@@ -77,10 +78,10 @@ function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Vector{Float64
         Px[i,i] = W[i] + Px[i,i]
     end
 
-    return trcov(Px, data)
+    return trcov(Px, data, wpm)
 end
     
-function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Array{Float64, 2})
+function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Array{Float64, 2}, wpm::Dict{Int64,Vector{Float64}})
 
     m = length(data)
     n = size(hess, 1) - m
@@ -95,7 +96,7 @@ function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Array{Float64,
     hi   = LinearAlgebra.pinv(maux)
     Px   = W - hm' * hi * hm
 
-    return trcov(Px, data)
+    return trcov(Px, data, wpm)
 end
 
 @doc raw"""
@@ -153,8 +154,9 @@ println("chi^2 / chi_exp^2: ", chisq(xp, value.(dt)), " / ", chiexp(chisq, xp, d
 """
 function chiexp(chisq::Function,
                 xp::Vector{Float64}, 
-                data::Vector{uwreal};
-                W = Vector{Float64}())
+                data::Vector{uwreal},
+                wpm::Dict{Int64,Vector{Float64}};
+                W::Vector{Float64} = Vector{Float64}())
 
     n = length(xp)   # Number of fit parameters
     m = length(data) # Number of data
@@ -182,7 +184,7 @@ function chiexp(chisq::Function,
             Ww = zeros(Float64, m)
             for i in 1:m
                 if (data[i].err == 0.0)
-                    uwerr(data[i])
+                    uwerr(data[i], wpm)
                     if (data[i].err == 0.0)
                         error("Zero error in fit data")
                     end
@@ -193,15 +195,28 @@ function chiexp(chisq::Function,
             Ww = W
         end
 
-        cse = chiexp(hess, data, Ww)        
+        cse = chiexp(hess, data, Ww, wpm)
     end
 
     return cse
 end
+chiexp(chisq::Function,
+       xp::Vector{Float64}, 
+       data::Vector{uwreal};
+       W::Vector{Float64} = Vector{Float64}()) = 
+           chiexp(chisq, xp, data, Dict{Int64,Vector{Float64}}(), W)
+chiexp(chisq::Function,
+       xp::Vector{Float64}, 
+       data::Vector{uwreal},
+       wpm::Dict{String,Vector{Float64}};
+       W::Vector{Float64} = Vector{Float64}()) = 
+           chiexp(chisq, xp, data, dict_names_to_id(wpm), W)
+
+
 
 @doc raw"""
 
-    fit_error(chisq::Function, xp::Vector{Float64}, data::Vector{uwreal};
+    fit_error(chisq::Function, xp::Vector{Float64}, data::Vector{uwreal}[, wpm];
                    W = Vector{Float64}(), chi_exp = true)
 
 Given a ``\chi^2(p, d)``, function of the fit parameters `p[:]` and the data `d[:]`, this routine return the fit parameters as `uwreal` type and optionally, the expected value of ``\chi^2(p, d)``.
@@ -215,6 +230,7 @@ Given a ``\chi^2(p, d)``, function of the fit parameters `p[:]` and the data `d[
 where the function ``f_i(p)`` is an arbitrary function of the fit parameters. In simple words, the expected ``\chi^2(p, d)`` is determined assuming that the function ``\chi^2(p, d)`` is quadratic in the data.
 - `xp`: A vector of `Float64`. The value of the fit parameters at the minima.
 - `data`: A vector of `uwreal`. The data whose fluctuations enter in the evaluation of the `chisq`.
+- `wpm`: `Dict{Int64,Vector{Float64}}` or `Dict{String,Vector{Float64}}`. The criteria to determine the summation window. See the documentation on `uwerr` function for more details.
 - `W`: A matrix. The weights that enter in the evaluation of the `chisq` function. If a vector is passed, the matrix is assumed to be diagonal (i.e. **uncorrelated** fit). If no weights are passed, the routines assumes that `W` is diagonal with entries given by the inverse errors squared of the data (i.e. the `chisq` is weighted with the errors of the data). 
 - `chi_exp`: Bool type. If false, do not compute the expected ``\chi^2(p, d)``.
 
@@ -239,7 +255,7 @@ vs  = rand(dmv, 1)
 
 # Create the uwreal data that we want to 
 # fit to a constant
-dt = cobs(vs[:,1], sig, [100+n for n in 1:npt])
+dt = cobs(vs[:,1], sig, "Data points")
 
 # Define the chi^2
 chisq(p, d) = sum( (d .- p[1]) .^ 2 ./ dx .^2 )
@@ -254,14 +270,18 @@ xp = [sum(value.(dt) ./ dx)/sum(1.0 ./ dx)]
 (fitp, csqexp) = fit_error(chisq, xp, dt)
 
 uwerr.(fitp)
-println("Fit parameter:     ", fitp[1])
-println("chi^2 / chi_exp^2: ", chisq(xp, value.(dt)), " / ", csqexp)
+println(" *** FIT RESULTS ***")
+print("Fit parameter:     ")
+details.(fitp)
+println("chi^2 / chi_exp^2: ", chisq(xp, value.(dt)), " / ", csqexp, "  (dof: ", npt-1, ")")
 ```
 """
 function fit_error(chisq::Function,
                    xp::Vector{Float64}, 
-                   data::Vector{uwreal};
-                   W = Vector{Float64}(), chi_exp = true)
+                   data::Vector{uwreal},
+                   wpm::Dict{Int64,Vector{Float64}};
+                   W::Vector{Float64} = Vector{Float64}(),
+                   chi_exp::Bool = true)
 
     n = length(xp)   # Number of fit parameters
     m = length(data) # Number of data
@@ -301,7 +321,7 @@ function fit_error(chisq::Function,
             Ww = zeros(Float64, m)
             for i in 1:m
                 if (data[i].err == 0.0)
-                    uwerr(data[i])
+                    uwerr(data[i], wpm)
                     if (data[i].err == 0.0)
                         error("Zero error in fit data")
                     end
@@ -312,11 +332,86 @@ function fit_error(chisq::Function,
             Ww = W
         end
         
-        cse = chiexp(hess, data, Ww)        
+        cse = chiexp(hess, data, Ww, wpm)
     end
 
     return param, cse
 end
+
+function fit_error(chisq::Function,
+                   xp::Vector{Float64}, 
+                   data::Vector{uwreal},
+                   wpm::Dict{Int64,Vector{Float64}},
+                   W::Array{Float64, 2};
+                   chi_exp::Bool = true)
+
+    n = length(xp)   # Number of fit parameters
+    m = length(data) # Number of data
+
+    xav = Vector{Float64}(undef, n+m)
+    for i in 1:n
+        xav[i] = xp[i]
+    end
+    for i in n+1:n+m
+        xav[i] = data[i-n].mean
+    end
+
+    ccsq(x::Vector) = chisq(x[1:n], x[n+1:n+m])
+    if (n+m < 4)
+        cfg = ForwardDiff.HessianConfig(ccsq, xav, Chunk{1}());
+    else
+        cfg = ForwardDiff.HessianConfig(ccsq, xav, Chunk{4}());
+    end
+
+    hess = Array{Float64}(undef, n+m, n+m)
+    ForwardDiff.hessian!(hess, ccsq, xav, cfg)
+    
+    hm = view(hess, 1:n, 1:n)
+    sm = view(hess, 1:n, n+1:n+m)
+    hinv = LinearAlgebra.pinv(hm)
+    grad = - hinv * sm
+    
+    param = addobs(data, grad, xp)
+
+    if (!chi_exp)
+        return param
+    end
+    
+    cse = 0.0
+    if (m-n > 0)
+        cse = chiexp(hess, data, W, wpm)
+    end
+
+    return param, cse
+end
+
+fit_error(chisq::Function,
+          xp::Vector{Float64}, 
+          data::Vector{uwreal};
+          W::Vector{Float64} = Vector{Float64}(),
+          chi_exp::Bool = true) = 
+              fit_error(chisq, xp, data, Dict{Int64,Vector{Float64}}(), W=W, chi_exp=chi_exp)
+fit_error(chisq::Function,
+          xp::Vector{Float64}, 
+          data::Vector{uwreal},
+          W::Array{Float64,2};
+          chi_exp::Bool = true) = 
+              fit_error(chisq, xp, data, Dict{Int64,Vector{Float64}}(), W=W, chi_exp=chi_exp)
+fit_error(chisq::Function,
+          xp::Vector{Float64}, 
+          data::Vector{uwreal},
+          wpm::Dict{String,Vector{Float64}};
+          W::Vector{Float64} = Vector{Float64}(),
+          chi_exp::Bool = true) = 
+              fit_error(chisq, xp, data, dict_names_to_id(wpm), W=W, chi_exp=chi_exp)
+fit_error(chisq::Function,
+          xp::Vector{Float64}, 
+          data::Vector{uwreal},
+          wpm::Dict{String,Vector{Float64}},
+          W::Array{Float64,2};
+          chi_exp::Bool = true) = 
+              fit_error(chisq, xp, data, dict_names_to_id(wpm), W=W, chi_exp=chi_exp)
+
 
 @doc raw"""
     int_error(fint::Function, a, b, p::Vector{uwreal})
@@ -334,11 +429,11 @@ using ADerrors
 # here we try to reproduce the result
 # Scale ratio = 21.86(42) Eq.5.6
 avg = [16.26, 0.12, -0.0038]
-Mcov = [0.478071 -0.176116 0.0135305
-        -0.176116 0.0696489 -0.00554431
-        0.0135305 -0.00554431 0.000454180]
+Mcov = [ 0.478071  -0.176116   0.0135305
+        -0.176116   0.0696489 -0.00554431
+         0.0135305 -0.00554431 0.000454180]
 
-p = cobs(avg, Mcov, [1, 2001, 32])
+p = cobs(avg, Mcov, "Beta function fit parameters")
 g1s = uwreal([2.6723, 0.0064], 4)
 g2s = 11.31
 

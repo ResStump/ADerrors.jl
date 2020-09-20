@@ -7,7 +7,7 @@ contains variables with uncertainties. In very simple cases this is
 just a central value and an error
 ```@repl gs
 using ADerrors
-a = uwreal([1.0, 0.1], 1) # 1.0 +/- 0.1
+a = uwreal([1.0, 0.1], "Var with error") # 1.0 +/- 0.1
 ```
 But it also supports the case where the uncertainty comes from Monte
 Carlo measurements
@@ -23,10 +23,10 @@ for i in 2:1000
     end
 end
 
-b = uwreal(x.^2, 200)
-c = uwreal(x.^4, 200)
+b = uwreal(x.^2, "Random walk ensemble in [-1,1]")
+c = uwreal(x.^4, "Random walk ensemble in [-1,1]")
 ```
-Correlations between variables are treated consistently. Each call to `uwreal` contains an ensemble `ID` tag. In the previous examples `a` has been measured on ensemble `ID` 1, while both `b` and `c` have been measured on ensemble `ID` 200. Monte Carlo measurements with the same `ID` tag are assumed to be measured on the same configurations: `b` and `c` above are statistically correlated, while `a` will be uncorrelated with both `b` and `c`. 
+Correlations between variables are treated consistently. Each call to `uwreal` contains an ensemble `ID` tag. In the previous examples `a` has been measured on ensemble `ID` `Var with error`, while both `b` and `c` have been measured on ensemble `ID` `Random walk ensemble in [-1,1]`. Monte Carlo measurements with the same `ID` tag are assumed to be measured on the same configurations: `b` and `c` above are statistically correlated, while `a` will be uncorrelated with both `b` and `c`. 
 
 One can perform operations with `uwreal` variables as if there were normal floats
 ```@repl gs
@@ -45,7 +45,7 @@ A call to `uwerr` will apply the ``\Gamma``-method to MC ensembles. `ADerrors.jl
 println("Details on variable d: ")
 details(d)
 ```
-Here we can see that there are two ensembles contributing to the uncertainty in `d`. We recognize this as `d` being a function of both `a` (measured on ensemble 1), and `b` and `c`, measured on ensemble 200. Most of the error in `d` comes in fact from ensemble 200.
+Here we can see that there are two ensembles contributing to the uncertainty in `d`. We recognize this as `d` being a function of both `a` (measured on ensemble `Var with error`), and `b` and `c`, measured on ensemble `Random walk ensemble in [-1,1]`. Most of the error in `d` comes in fact from ensemble `Random walk ensemble in [-1,1]`.
 
 Note that one does not need to use `uwerr` on a variable unless one is interested in the error on that variable. For example, continuing with the previous example
 ```@repl gs
@@ -84,8 +84,7 @@ using LsqFit, ADerrors
 xdata = range(0, stop=10, length=20);
 ydata = Vector{uwreal}(undef, length(xdata));
 for i in eachindex(ydata)
-	# Note that we assign to point i the ID 1000*i
-	ydata[i] = uwreal([model(xdata[i], [1.0 2.0]) + 0.01*getindex(randn(1),1), 0.01], 1000*i)
+	ydata[i] = uwreal([model(xdata[i], [1.0 2.0]) + 0.01*getindex(randn(1),1), 0.01], "Point "*string(i))
 	uwerr(ydata[i]) # We will need the errors for the weights of the fit
 end
 p0 = [0.5, 0.5];
@@ -142,9 +141,9 @@ for i in 2:10000
 end
 
 # x^2 only measured on odd configurations
-x2 = uwreal(x[1:2:9999].^2,  1001, collect(1:2:9999),  10000)
+x2 = uwreal(x[1:2:9999].^2,  1001, collect(1:2:9999),  "Random walk in [-1,1]")
 # x^4 only measured on even configurations
-x4 = uwreal(x[2:2:10000].^4, 1001, collect(2:2:10000), 10000)
+x4 = uwreal(x[2:2:10000].^4, 1001, collect(2:2:10000), "Random walk in [-1,1]")
 ```
 the variables `x2` and `x4` are normal `uwreal` variables, and one can work with them as with any other variable. Note however that the automatic determination of the summation window can fail in these cases, because the autocorrelation function with missing measurements can be very complicated. For example
 ```@repl gaps
@@ -153,9 +152,9 @@ uwerr(rat); # Use automatic window: might fail!
 ```
 In this case `uwerr` complains because with the automatically chosen window the variance for ensemble with ID 1001 is negative. Let's have a look at the normalized autocorrelation function
 ```@repl gaps
-iw = window(rat, 1001)
-r  = rho(rat, 1001);
-dr = drho(rat, 1001);
+iw = window(rat, "Random walk in [-1,1]")
+r  = rho(rat, "Random walk in [-1,1]");
+dr = drho(rat, "Random walk in [-1,1]");
 plot(collect(1:100), 
 	r[1:100], 
 	yerr = dr[1:100], 
@@ -166,7 +165,7 @@ savefig("rat_cf.png") # hide
 The normalized autocorrelation function is oscillating, and the automatically chosen window is 2, producing a negative variance! We better fix the window to 50 for this case
 ```@repl gaps
 wpm = Dict{Int64, Vector{Float64}}()
-wpm[1001] = [50.0, -1.0, -1.0, -1.0]
+wpm["Random walk in [-1,1]"] = [50.0, -1.0, -1.0, -1.0]
 uwerr(rat, wpm) # repeat error analysis with our choice (window=50)
 println("Ratio: ", rat)
 ```
@@ -175,9 +174,9 @@ Note however that it is very difficult to anticipate which observables will have
 ```@repl gaps
 prod = x2*x4
 uwerr(prod)
-iw = window(prod, 1001)
-r  = rho(prod, 1001);
-dr = drho(prod, 1001);
+iw = window(prod, "Random walk in [-1,1]")
+r  = rho(prod, "Random walk in [-1,1]");
+dr = drho(prod, "Random walk in [-1,1]");
 plot(collect(1:2*iw), 
 	r[1:2*iw], 
 	yerr = dr[1:2*iw], 
@@ -197,11 +196,13 @@ All observables are stored in a single `BDIO` record of type `BDIO_BIN_GENERIC`.
 - ndata (`Vector{Int32}(neid)`): The length of each ensemble.
 - nrep (`Vector{Int32}(neid)`): The number of replica of each enemble.
 - vrep (`Vector{Int32}`): The replica vector for each ensemble.
-- ids (`Vector{Int32}(neid)`): The ensemble `ID`'s.
+- ids (`Vector{Int32}(neid)`): The ensemble numeric `ID`'s.
 - nt (`Vector{Int32}(neid)`): Half the largest replica of each ensemble.
 - zero (`Vector{Float64}(neid)`): just `neid` zeros.
 - four (`Vector{Float64}(neid)`): just `neid` fours.
 - delta  (`Vector{Float64}`): The fluctuations for each ensemble.
+- name (NULL terminated `String`): A description of the observable.
+- `ID` tags: A list of `neid` tuples `(Int34, String)` that maps each numeric `ID` to an ensemble tag. All strings are NULL terminated.
 
 !!! alert
     Obviously this weird format is what it is for some legacy reasons, but it is strongly encouraged that new implementations respect this standard with all its weirdness. 

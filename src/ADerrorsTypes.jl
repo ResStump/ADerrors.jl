@@ -73,6 +73,11 @@ mutable struct wspace
 
     map_nob::Array{Int64, 1}    # The id that corresponds to each ob
     map_ids::Dict{Int64, Int64} # For each id, a fluc index
+
+    id2str::Dict{Int64, String} # Ensemble id for each String
+    str2id::Dict{String, Int64} # Ensemble String for each id
+
+    newid::Int64
 end
 
 

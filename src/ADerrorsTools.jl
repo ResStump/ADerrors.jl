@@ -10,9 +10,10 @@
 ###                               
 
 """
+    cobs(avgs::Vector{Float64}, Mcov::Array{Float64, 2}, str::String)
     cobs(avgs::Vector{Float64}, Mcov::Array{Float64, 2}, ids::Vector{Int64})
 
-Returns a vector of `uwreal` such that their mean values are `avgs[:]` and their covariance is `Mcov[:,:]`. In order to construct these observables `n=length(avgs)` ensemble ID are used. These have to be specified in the vector `ids[:]`.
+Returns a vector of `uwreal` such that their mean values are `avgs[:]` and their covariance is `Mcov[:,:]`. In order to construct these observables `n=length(avgs)` ensemble ID are used. These are generated either from the string `str` or have to be specified in the vector `ids[:]`.
 ```@example
 using ADerrors # hide
 # Put some average values and covariance 
@@ -23,7 +24,7 @@ Mcov = [0.478071 -0.176116 0.0135305
 
 # Produce observables with ensemble ID 
 # [1, 2001, 32]. Do error analysis
-p = cobs(avg, Mcov, [1, 2001, 32])
+p = cobs(avg, Mcov, "GF beta function parameters")
 uwerr.(p)
 
 # Check central values are ok
@@ -49,6 +50,19 @@ function cobs(avgs::Vector{Float64}, cov::Array{Float64, 2}, ids::Vector{Int64})
     end
     return p
 end
+
+function cobs(avgs::Vector{Float64}, cov::Array{Float64, 2}, str::String)
+
+    n = length(avgs)
+    ids = Vector{Int64}(undef, n)
+    for i in 1:n
+        tstr = Printf.@sprintf "%s %8.8d" str i
+        ids[i] = get_id_from_name(tstr)
+    end
+
+    return cobs(avgs, cov, ids)
+end
+
 
 function addobs(a::Vector{uwreal}, der::Vector{Float64}, mvl::Float64)
 

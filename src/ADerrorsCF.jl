@@ -19,6 +19,8 @@ const iprm = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41,
 const DEFAULT_STAU = 4.0
 const DO_BIN = false
 
+is_int32(str::String) =  Base.tryparse(Int32, str) !== nothing
+
 function get_nbin_vec(nd::Array{Int64, 1})::Int64
     
     nbin::Int64 = 1
@@ -56,25 +58,63 @@ function bin_data(vin::Array{Float64, 1}, nbin::Int64)
     return vout
 end
 
-function add_DB(delta::Vector{Float64}, id::Int64, iv::Vector{Int64}, ws::wspace)
+get_new_id(ws::wspace) = ws.newid = ws.newid - 1
+
+function get_id_from_name(str::String, ws::wspace)
+
+    if (haskey(ws.str2id, str))
+        id = ws.str2id[str]
+    else
+        if is_int32(str)
+            id = Base.tryparse(Int32, str)
+        else
+            id = get_new_id(ws)
+        end
+        ws.id2str[id]  = str
+        ws.str2id[str] = id
+    end
+
+    return id
+end
+
+function get_name_from_id(id::Int64, ws::wspace)
+
+    if haskey(ws.id2str, id)
+        str = ws.id2str[id]
+    else
+        str = string(id)
+        ws.id2str[id]  = str
+        ws.str2id[str] = id
+    end
+
+    return str
+end
+    
+function add_maps(id::Int64, ws::wspace)
+
+    ws.nob += 1
+    push!(ws.map_nob, id)
+    if (!haskey(ws.map_ids, id))
+        ws.map_ids[id] = ws.nob
+    end
+
+    return nothing
+end
+
+function add_DB(delta::Vector{Float64}, id::Int64, iv::Vector{Int64}, ws::wspace, do_maps::Bool = true)
 
 
     nd = length(delta)
+
     if (nd == 1)
-        ws.nob += 1
         new  = fbd(1, 1, delta, [1], Dict{Int64,Vector{Complex{Float64}}}())
         push!(ws.fluc, new)
-        push!(ws.map_nob, id)
-        if (!haskey(ws.map_ids, id))
-            ws.map_ids[id] = ws.nob
-        end
     else
         if (sum(iv) != length(delta))
             println(stderr, "ID:          ", id)
             ArgumentError("Sum of replica length does not match number of measurements")
         end
-        ws.nob += 1
-        push!(ws.map_nob, id)
+
         if (haskey(ws.map_ids, id))
             if (length(delta) != ws.fluc[ws.map_ids[id]].nd)
                 println(stderr, "ID:         ", id)
@@ -88,8 +128,6 @@ function add_DB(delta::Vector{Float64}, id::Int64, iv::Vector{Int64}, ws::wspace
                 println(stderr, "obs replica: ", iv)
                 error("Mistmatch in replica vector for the same ensemble ID")
             end
-        else
-            ws.map_ids[id] = ws.nob
         end
 
         fseries = Dict{Int64,Vector{Complex{Float64}}}()
@@ -109,9 +147,13 @@ function add_DB(delta::Vector{Float64}, id::Int64, iv::Vector{Int64}, ws::wspace
                   iv,
                   fseries)
         push!(ws.fluc, new)
-
     end
 
+    if do_maps
+        add_maps(id, ws)
+    end
+
+    return nothing
 end
 
 function uwcls(data::Vector{Float64}, id::Int64, ws::wspace, iv::Vector{Int64})
@@ -632,31 +674,49 @@ end
 
 
 wsg = ADerrors.wspace(similar(Vector{ADerrors.fbd}, 0),
-                0,
-                similar(Vector{Int64}, 0),
-                Dict{Int64, Int64}())
+                      0,
+                      similar(Vector{Int64}, 0),
+                      Dict{Int64, Int64}(),
+                      Dict{Int64, String}(), Dict{String, Int64}(),
+                      -12345)
+
+get_id_from_name(str::String) = get_id_from_name(str, wsg)
+taui(a::uwreal, str::String) = taui(a, get_id_from_name(str))
+dtaui(a::uwreal, str::String) = dtaui(a, get_id_from_name(str))
+window(a::uwreal, str::String) = window(a, get_id_from_name(str))
+rho(a::uwreal, str::String) = rho(a, get_id_from_name(str))
+drho(a::uwreal, str::String) = drho(a, get_id_from_name(str))
 
 empt = Dict{Int64,Vector{Float64}}()
+
+function dict_name_to_id(wpm::Dict{String, Vector{Float64}})
+    wp = Dict{Int64, Vector{Float64}}()
+    for i in keys(wpm)
+        wp[get_id_from_name(i)] = wpm[i]
+    end
+    
+    return wp
+end
 
 
 """
     uwreal(x::Float64)
     uwreal([value::Float64, error::Float64], mcid)
-    uwreal(data::Vector{Float64}, mcid::Int64[, replica::Vector{Int64}])
-    uwreal(data::Vector{Float64}, mcid::Int64[, replica::Vector{Int64}], idm::Vector{Int64}, nms::Int64)
+    uwreal(data::Vector{Float64}, mcid[, replica::Vector{Int64}])
+    uwreal(data::Vector{Float64}, mcid[, replica::Vector{Int64}], idm::Vector{Int64}, nms::Int64)
 
 Returns an `uwreal` data type. Depending on the first argument, the `uwreal` stores the following information:
 - Input is a single `Float64`. In this case the variable acts in exactly the same way as a real number. This is understood as a quantity with zero error.
 - Input is a 2 element Vector of `Float64` `[value, error]`. In this case the data is understood as `value +/- error`.
 - Input is a Vector of `Float64` of length larger than 4. In this case the data is understood as consecutive measurements of an observable in a Monte Carlo (MC) simulation. 
 
-In the last two cases, an ensemble `ID` is required as input. Data with the same `ID` are considered as correlated (i.e. fully correlated for the case of a `value +/- error` observables measured on the same sample for the case of data from a MC simulation). For example:
+In the last two cases, an ensemble `ID` is required as input. Data with the same `ID` are considered as correlated (i.e. fully correlated for the case of a `value +/- error` observables measured on the same sample for the case of data from a MC simulation). The preferred way to input the ensemble tag is via a `String` that uniquely identifies the ensemble, but an integer is also supported for legacy reasons. For example:
 
 ```@example
 using ADerrors # hide
-a = uwreal([1.2, 0.2], 12)   # a = 1.2 +/- 0.2
-b = uwreal([1.2, 0.2], 12)   # b = 1.2 +/- 0.2
-c = uwreal([1.2, 0.2], 2000) # c = 1.2 +/- 0.2
+a = uwreal([1.2, 0.2], "Simple var with error")   # a = 1.2 +/- 0.2
+b = uwreal([1.2, 0.2], "Simple var with error")   # b = 1.2 +/- 0.2
+c = uwreal([1.2, 0.2], "Another var with error")  # c = 1.2 +/- 0.2
 
 d = a-b
 uwerr(d)
@@ -674,7 +734,7 @@ println("e has non zero error because a and c are independent", e)
 using ADerrors # hide
 # 1000 measurements in three replica of lengths
 # 500, 100 and 400
-a = uwreal(rand(1000), 12, [500, 100, 400]) 
+a = uwreal(rand(1000), "Ensemble with three replica", [500, 100, 400]) 
 ```
 ### Gaps in the measurements
 
@@ -685,11 +745,11 @@ In some situations an observable is not measured in every configuration. In this
 using ADerrors # hide
 # Observable measured on the odd configurations 
 # 1, 3, 5, ..., 999 on an emsemble of length 1000
-a = uwreal(rand(500), 12, collect(1:2:999), 1000)
+a = uwreal(rand(500), "Observable with gaps", collect(1:2:999), 1000)
 
 # Observable measured on the first 900 configurations 
 # on the same emsemble
-b = uwreal(rand(900), 12, collect(1:900), 1000)
+b = uwreal(rand(900), "Observable with gaps", collect(1:900), 1000)
 ```
 Note that in this case, if the ensemble has different replica, `sum(replica)` must match `nms`
 ```@example
@@ -697,33 +757,78 @@ using ADerrors # hide
 # Observable measured on the even configurations 
 # 2, 4, 6, ..., 200 on an emsemble of length 200
 # with two replica of lengths 75, 125
-a = uwreal(data_a[1:500], 123, [75, 125], collect(2:2:200), 200)
+a = uwreal(data_a[1:500], "Observable with gaps in an ensemble with replica", [75, 125], collect(2:2:200), 200)
 ```
 """
 uwreal(x::Float64) = ADerrors.uwreal(x, 0.0, 0.0, 
                                      Vector{Bool}(), Vector{Float64}(), 
                                      Vector{Int64}(), Vector{cfdata}())
 
-uwreal(data::Vector{Float64}, id::Int64) = ADerrors.uwcls(data::Vector{Float64}, id::Int64, wsg, [length(data)])
-uwreal(data::Vector{Float64}, id::Int64, iv::Vector{Int64}) = ADerrors.uwcls(data::Vector{Float64}, id::Int64, wsg, iv)
-uwreal(data::Vector{Float64}, id::Int64, idm::Vector{Int64}, nms::Int64) = ADerrors.uwcls_gaps(data::Vector{Float64},
-                    id::Int64, wsg,
+uwreal(data::Vector{Float64},
+       id::Int64) = ADerrors.uwcls(data,
+                                   id,
+                                   wsg,
+                                   [length(data)])
+uwreal(data::Vector{Float64},
+       id::Int64,
+       iv::Vector{Int64}) = ADerrors.uwcls(data,
+                                           id,
+                                           wsg,
+                                           iv)
+uwreal(data::Vector{Float64},
+       id::Int64,
+       idm::Vector{Int64},
+       nms::Int64) = ADerrors.uwcls_gaps(data,
+                                         id,
+                                         wsg,
+                                         [nms],
+                                         idm,
+                                         nms)
+uwreal(data::Vector{Float64},
+       id::Int64,
+       iv::Vector{Int64},
+       idm::Vector{Int64},
+       nms::Int64) = ADerrors.uwcls_gaps(data,
+                                         id,
+                                         wsg,
+                                         iv,
+                                         idm,
+                                         nms)
+
+uwreal(data::Vector{Float64}, str::String) = ADerrors.uwcls(data,
+                                   get_id_from_name(str, wsg),
+                                   wsg,
+                                   [length(data)])
+uwreal(data::Vector{Float64},
+       str::String,
+       iv::Vector{Int64}) = ADerrors.uwcls(data, get_id_from_name(str, wsg), wsg, iv)
+uwreal(data::Vector{Float64},
+       str::String,
+       idm::Vector{Int64},
+       nms::Int64) = ADerrors.uwcls_gaps(data,
+                    get_id_from_name(str, wsg), wsg,
                     [nms],
-                    idm::Vector{Int64},
-                    nms::Int64)
-uwreal(data::Vector{Float64}, id::Int64, iv::Vector{Int64}, idm::Vector{Int64}, nms::Int64) = ADerrors.uwcls_gaps(data::Vector{Float64},
-                    id::Int64, wsg,
-                    iv::Vector{Int64},
-                    idm::Vector{Int64},
-                    nms::Int64)
+                    idm,
+                    nms)
+uwreal(data::Vector{Float64},
+       str::String,
+       iv::Vector{Int64},
+       idm::Vector{Int64},
+       nms::Int64) = ADerrors.uwcls_gaps(data,
+                                         get_id_from_name(str, wsg),
+                                         iv,
+                                         idm,
+                                         nms)
+
 
 @doc raw"""
      uwerr(a::uwreal[, wpm::Dict{Int64,Vector{Float64}}])
+     uwerr(a::uwreal[, wpm::Dict{String,Vector{Float64}}])
 
 Performs error analysis on the observable `a`.
 ```@example
 using ADerrors # hide
-a = uwreal([1.3, 0.01], 1) # 1.3 +/- 0.01
+a = uwreal([1.3, 0.01], "Var with error") # 1.3 +/- 0.01
 b = sin(2.0*a)
 uwerr(b)
 println("Look how I propagate errors:              ", b)
@@ -762,58 +867,58 @@ for i in 2:1000
 end
 
 # Load the data in a uwreal
-a = uwreal(x.^2, 1233)
-wpm = Dict{Int64,Vector{Float64}}()
+a = uwreal(x.^2, "Random walk in [-1,1]")
+wpm = Dict{String,Vector{Float64}}()
 
 # Use default analysis (stau = 4.0)
 uwerr(a)
-println("default:                   ", a, " (tauint = ", taui(a, 1233), ")")
+println("default:                   ", a, " (tauint = ", taui(a, "Random walk in [-1,1]"), ")")
 
 # This will still do default analysis because 
-# a does not depend on emsemble 300
-wpm[300] = [-1.0, 8.0, -1.0, 145.0]
+# a does not depend on emsemble foo
+wpm["Ensemble foo"] = [-1.0, 8.0, -1.0, 145.0]
 uwerr(a, wpm)
-println("default:                   ", a, " (tauint = ", taui(a, 1233), ")")
+println("default:                   ", a, " (tauint = ", taui(a, "Random walk in [-1,1]"), ")")
 
 # Fix the summation window to 1 (i.e. uncorrelated data)
-wpm[1233] = [1.0, -1.0, -1.0, -1.0]
+wpm["Random walk in [-1,1]"] = [1.0, -1.0, -1.0, -1.0]
 uwerr(a, wpm)
-println("uncorrelated:              ",  a, " (tauint = ", taui(a, 1233), ")")
+println("uncorrelated:              ",  a, " (tauint = ", taui(a, "Random walk in [-1,1]"), ")")
 
 # Use stau = 1.5
-wpm[1233] = [-1.0, 1.5, -1.0, -1.0]
+wpm["Random walk in [-1,1]"] = [-1.0, 1.5, -1.0, -1.0]
 uwerr(a, wpm)
-println("stau = 1.5:                ", a, " (tauint = ", taui(a, 1233), ")")
+println("stau = 1.5:                ", a, " (tauint = ", taui(a, "Random walk in [-1,1]"), ")")
 
 # Use fixed window 15 and add tail with texp = 100.0
-wpm[1233] = [15.0, -1.0, -1.0, 100.0]
+wpm["Random walk in [-1,1]"] = [15.0, -1.0, -1.0, 100.0]
 uwerr(a, wpm)
-println("Fixed window 15, texp=100: ", a, " (tauint = ", taui(a, 1233), ")")
+println("Fixed window 15, texp=100: ", a, " (tauint = ", taui(a, "Random walk in [-1,1]"), ")")
 
 # Sum up to the point that the signal in Gamma is 
-# 1.5 times the error and add a tail with texp = 30.0
-wpm[1233] = [-1.0, -1.0, 1.5, 30.0]
+# 1.5 times the error and add a tail with texp = 10.0
+wpm["Random walk in [-1,1]"] = [-1.0, -1.0, 1.5, 30.0]
 uwerr(a, wpm)
-println("signal/noise=1.5, texp=30: ", a, " (tauint = ", taui(a, 1233), ")")
+println("signal/noise=1.5, texp=10: ", a, " (tauint = ", taui(a, "Random walk in [-1,1]"), ")")
 ```
 """
-uwerr(a::uwreal, wpm::Dict{Int64,Vector{Float64}}) = ADerrors.uwerror(a::uwreal, wsg, wpm)
+uwerr(a::uwreal, wpm::Dict{Int64,Vector{Float64}}) = ADerrors.uwerror(a, wsg, wpm)
 uwerr(a::uwreal) = ADerrors.uwerror(a::uwreal, wsg, empt)
-
+uwerr(a::uwreal, wpm::Dict{String,Vector{Float64}}) = uwerr(a, dict_name_to_id(wpm))
 
 """
-    cov(a::Vector{uwreal}[, wpm::Dict{Int64,Vector{Float64}}])
+    cov(a::Vector{uwreal}[, wpm])
 
 Determine the covariance matrix between the vector of observables `a[:]`. 
 ```@example
 using ADerrors, LinearAlgebra # hide
-a = uwreal([1.3, 0.01], 1) # 1.3 +/- 0.01
-b = uwreal([5.3, 0.23], 2) # 5.3 +/- 0.23
+a = uwreal([1.3, 0.01], "Var 1") # 1.3 +/- 0.01
+b = uwreal([5.3, 0.23], "Var 2") # 5.3 +/- 0.23
 uwerr(a)
 uwerr(b)
 
 x = [a+b, a-b]
-mat = cov(x)
+mat = ADerrors.cov(x)
 println("Covariance: ", mat[1,1], " ", mat[1,2])
 println("            ", mat[2,1], " ", mat[2,2])
 println("Check (should be zero): ",  mat[1,1] - mat[2,2])
@@ -825,17 +930,19 @@ println("Check (should be zero): ",  mat[1,2] - (err(a)^2-err(b)^2))
 An optional parameter `wpm` can be used to choose the summation window for the relevant autocorrelation functions. The situation is completely analogous to the case of error analysis of single variables.
 """
 cov(a::Vector{uwreal}) = cov(a::Vector{uwreal}, wsg, empt)
-cov(a::Vector{uwreal}, wpm::Dict{Int64,Vector{Float64}}) = cov(a::Vector{uwreal}, wsg, wpm::Dict{Int64,Vector{Float64}})
+cov(a::Vector{uwreal}, wpm::Dict{Int64,Vector{Float64}}) = cov(a, wsg, wpm)
+cov(a::Vector{uwreal}, wpm::Dict{String,Vector{Float64}}) = cov(a, wsg, dict_name_to_id(wpm))
+
 
 @doc raw"""
-     trcov(M::Array{Float64, 2}, a::Vector{uwreal})
+     trcov(M::Array{Float64, 2}, a::Vector{uwreal}[, wmp])
 
-Given a vector of `uwreal`, `a[:]` and a two dimensional array `M`, this routine computes  ``{\rm tr}(MC)``, where ``C_{ij} = {\rm cov}(a[i], a[j])``. 
+Given a vector of `uwreal`, `a[:]` and a two dimensional symmtric positive definite array `M`, this routine computes  ``{\rm tr}(MC)``, where ``C_{ij} = {\rm cov}(a[i], a[j])``. 
 ```@example
 using ADerrors, LinearAlgebra # hide
-a = uwreal([1.3, 0.01], 1) # 1.3 +/- 0.01
-b = uwreal([5.3, 0.23], 2) # 5.3 +/- 0.23
-c = uwreal(rand(2000), 3)
+a = uwreal([1.3, 0.01], "Var with error 1") # 1.3 +/- 0.01
+b = uwreal([5.3, 0.23], "Var with error 2") # 5.3 +/- 0.23
+c = uwreal(rand(2000), "White noise ensemble")
 
 x = [a+b+sin(c), a-b+cos(c), c-b/a]
 M = [1.0 0.2 0.1
@@ -845,17 +952,27 @@ M = [1.0 0.2 0.1
 mcov = cov(x)
 d = tr(mcov * M)
 println("Better be zero: ", d -trcov(M, x))
+
+# Case of Monte Carlo data
+
+An optional parameter `wpm` can be used to choose the summation window for the relevant autocorrelation functions. The situation is completely analogous to the case of error analysis of single variables.
 ```
 """
-trcov(M, a::Vector{uwreal}) = trcov(M, a::Vector{uwreal}, wsg, empt)
-trcov(M, a::Vector{uwreal}, wpm::Dict{Int64,Vector{Float64}}) = trcov(M, a::Vector{uwreal}, wsg, wpm::Dict{Int64,Vector{Float64}})
+trcov(M, a::Vector{uwreal}) = trcov(M, a, wsg, empt)
+trcov(M, a::Vector{uwreal}, wpm::Dict{Int64,Vector{Float64}}) = trcov(M, a, wsg, wpm)
+trcov(M, a::Vector{uwreal}, wpm::Dict{String,Vector{Float64}}) =
+    trcov(M, a, wsg, dict_name_to_id(wpm))
 
 trcorr(M, a::Vector{uwreal},
-       W::Vector{Float64}=Vector{Float64}()) = trcorr(M, a::Vector{uwreal}, wsg, empt, W)
+       W::Vector{Float64}=Vector{Float64}()) = trcorr(M, a, wsg, empt, W)
+trcorr(M, a::Vector{uwreal}, W::Vector{Float64},
+       wpm::Dict{Int64,Vector{Float64}}) = trcorr(M, a, wsg, wpm, W)
+trcorr(M, a::Vector{uwreal}, W::Vector{Float64},
+       wpm::Dict{String,Vector{Float64}}) = trcorr(M, a, wsg, dict_name_to_id(wpm), W)
 trcorr(M, a::Vector{uwreal},
-       W::Vector{Float64}, wpm::Dict{Int64,Vector{Float64}}) = trcorr(M, a::Vector{uwreal}, wsg, wpm::Dict{Int64,Vector{Float64}}, W)
+       wpm::Dict{Int64,Vector{Float64}}) = trcorr(M, a, wsg, wpm, Vector{Float64}())
 trcorr(M, a::Vector{uwreal},
-       wpm::Dict{Int64,Vector{Float64}}) = trcorr(M, a::Vector{uwreal}, wsg, wpm::Dict{Int64,Vector{Float64}}, Vector{Float64}())
+       wpm::Dict{String,Vector{Float64}}) = trcorr(M, a, wsg, dict_name_to_id(wpm), Vector{Float64}())
 
 
 """

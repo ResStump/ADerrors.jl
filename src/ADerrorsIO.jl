@@ -74,9 +74,9 @@ function derror(a::uwreal)
 end
 
 """
-    taui(a::uwreal, id::Int64)
+    taui(a::uwreal, mcid)
 
-Returns the value of tauint for the ensemble `id`. It is assumed that `uwerr` has been run on the variable and that `id` contributes to the observable `a`. Otherwise an error message is printed.
+Returns the value of tauint for the ensemble `mcid`. It is assumed that `uwerr` has been run on the variable and that `mcid` contributes to the observable `a`. Otherwise an error message is printed. `mcid` can be either an `Int64` (the proper ensemble ID), or a `String` (the ensemble tag).
 ```@example
 using ADerrors # hide
 # Generate some correlated data
@@ -90,9 +90,9 @@ for i in 2:1000
     end
 end
 
-a = uwreal(x.^2, 666)
+a = uwreal(x.^2, "Some simple ensemble")
 uwerr(a)
-println("Error analysis result: ", a, " (tauint = ", taui(a, 666), ")")
+println("Error analysis result: ", a, " (tauint = ", taui(a, "Some simple ensemble"), ")")
 ```
 """
 function taui(a::uwreal,   mcid::Int64)
@@ -105,9 +105,9 @@ function taui(a::uwreal,   mcid::Int64)
 end
 
 """
-    dtaui(a::uwreal, id::Int64)
+    dtaui(a::uwreal, mcid)
 
-Returns an estimate on the error of tauint for the ensemble `id`. It is assumed that `uwerr` has been run on the variable and that `id` contributes to the observable `a`. Otherwise an error message is printed.
+Returns an estimate on the error of tauint for the ensemble `mcid`. It is assumed that `uwerr` has been run on the variable and that `mcid` contributes to the observable `a`. Otherwise an error message is printed.
 ```@example
 using ADerrors # hide
 # Generate some correlated data
@@ -121,10 +121,10 @@ for i in 2:1000
     end
 end
 
-a = uwreal(x.^2, 666)
+a = uwreal(x.^2, "Some simple ensemble")
 uwerr(a)
 println("Error analysis result: ", a, 
-        " (tauint = ", taui(a, 666), " +/- ", dtaui(a, 666), ")")
+        " (tauint = ", taui(a, "Some simple ensemble"), " +/- ", dtaui(a, "Some simple ensemble"), ")")
 ```
 """
 function dtaui(a::uwreal,  mcid::Int64)
@@ -137,9 +137,9 @@ function dtaui(a::uwreal,  mcid::Int64)
 end
 
 """
-    window(a::uwreal, id::Int64)
+    window(a::uwreal, mcid)
 
-Returns the summation window for the ensemble `id`. It is assumed that `uwerr` has been run on the variable and that `id` contributes to the observable `a`. Otherwise an error message is printed.
+Returns the summation window for the ensemble `mcid`. It is assumed that `uwerr` has been run on the variable and that `mcid` contributes to the observable `a`. Otherwise an error message is printed.
 ```@example
 using ADerrors # hide
 # Generate some correlated data
@@ -153,10 +153,10 @@ for i in 2:1000
     end
 end
 
-a = uwreal(x.^2, 666)
+a = uwreal(x.^2, "Some simple ensemble")
 uwerr(a)
 println("Error analysis result: ", a, 
-        " (window = ", window(a, 666), ")")
+        " (window = ", window(a, "Some simple ensemble"), ")")
 ```
 """
 function window(a::uwreal, mcid::Int64)
@@ -169,9 +169,9 @@ function window(a::uwreal, mcid::Int64)
 end
 
 """
-    rho(a::uwreal, id::Int64)
+    rho(a::uwreal, mcid)
 
-Returns the normalized autocorrelation function of `a` for the ensemble `id`. It is assumed that `uwerr` has been run on the variable and that `id` contributes to the observable `a`. Otherwise an error message is printed.
+Returns the normalized autocorrelation function of `a` for the ensemble `mcid`. It is assumed that `uwerr` has been run on the variable and that `mcid` contributes to the observable `a`. Otherwise an error message is printed.
 ```@example
 using ADerrors # hide
 # Generate some correlated data
@@ -185,9 +185,9 @@ for i in 2:1000
     end
 end
 
-a = uwreal(x.^2, 666)
+a = uwreal(x.^2, "Some simple ensemble")
 uwerr(a)
-v = rho(a, 666)
+v = rho(a, "Some simple ensemble")
 for i in 1:length(v)
     println(i, " ", v[i])
 end
@@ -203,9 +203,9 @@ function rho(a::uwreal, mcid::Int64)
 end
 
 """
-    rho(a::uwreal, id::Int64)
+    drho(a::uwreal, mcid)
 
-Returns an estimate of the error on the normalized autocorrelation function of `a` for the ensemble `id`. It is assumed that `uwerr` has been run on the variable and that `id` contributes to the observable `a`. Otherwise an error message is printed.
+Returns an estimate of the error on the normalized autocorrelation function of `a` for the ensemble `mcid`. It is assumed that `uwerr` has been run on the variable and that `mcid` contributes to the observable `a`. Otherwise an error message is printed.
 ```@example
 using ADerrors # hide
 # Generate some correlated data
@@ -219,10 +219,10 @@ for i in 2:1000
     end
 end
 
-a = uwreal(x.^2, 666)
+a = uwreal(x.^2, "Some simple ensemble")
 uwerr(a)
-v  =  rho(a, 666)
-dv = drho(a, 666)
+v  =  rho(a, "Some simple ensemble")
+dv = drho(a, "Some simple ensemble")
 for i in 1:length(v)
     println(i, " ", v[i], " +/- ", dv[i])
 end
@@ -278,15 +278,33 @@ function read_bdio(fb, ws::wspace, mapids::Dict{Int64, Int64})
         dfl = zeros(Float64, nds[i])
         BDIO.BDIO_read(fb, dfl)
         id = convert(Int64, ids[i])
-        add_DB(dfl, get(mapids, id, id), convert(Vector{Int64}, ivrep[is:ie]), ws)
+        add_DB(dfl, get(mapids, id, id), convert(Vector{Int64}, ivrep[is:ie]), ws, false)
         
         is = ie + 1
     end
 
+    if BDIO.BDIO_eor(fb)
+        for i in 1:nid
+            id = convert(Int64, ids[i])
+            add_maps(id, ws)
+            get_name_from_id(id, ws)
+        end
+    else
+        name = BDIO.BDIO_read_str(fb)
+
+        for i in 1:nid
+            BDIO.BDIO_read(fb, ifoo)
+            str = BDIO.BDIO_read_str(fb)
+
+            id = get_id_from_name(str, ws)
+            add_maps(id, ws)
+        end
+    end
+    
     return uwreal(dfoo[1], p, d)
 end
 
-function write_bdio(p::uwreal, fb, iu::Int, ws::wspace)
+function write_bdio(p::uwreal, fb, iu::Int, ws::wspace; name="NO NAME")
 
     BDIO.BDIO_start_record!(fb, BDIO.BDIO_BIN_GENERIC, convert(Int32, iu), true)
     nid = convert(Int32, unique_ids!(p, ws))
@@ -329,6 +347,12 @@ function write_bdio(p::uwreal, fb, iu::Int, ws::wspace)
         BDIO.BDIO_write!(fb, dt, true)
     end
 
+    BDIO.BDIO_write!(fb, name*"\0")
+    for i in 1:nid
+        BDIO.BDIO_write!(fb, [convert(Int32, p.ids[i])])
+        BDIO.BDIO_write!(fb, get_name_from_id(p.ids[i], ws)*"\0")
+    end
+    
     BDIO.BDIO_write_hash!(fb)
 
     return true
@@ -341,24 +365,21 @@ Write out a detailed information on the error of `a`.
 
 ## Arguments
 
-Optionally one can pass as a keyword argument (`io`) the `IO` stream to write to and a dictionary (`names`) that translates ensemble `ID`s into more human friendly `Strings`
+Optionally one can pass as a keyword argument (`io`) the `IO` stream to write to.
 
 ## Example
 ```@example
 using ADerrors # hide
-a = uwreal(rand(2000),   120)
-b = uwreal([1.2, 0.023], 121)
-c = uwreal([5.2, 0.03],  122)
+a = uwreal(rand(2000),   "Ensemble A12")
+b = uwreal([1.2, 0.023], "Ensemble XYZ")
+c = uwreal([5.2, 0.03],  "Ensemble RRR")
 d = a + b - c
 uwerr(d)
 
-bnm = Dict{Int64, String}()
-bnm[120] = "Very important ensemble"
-bnm[122] = "H12B K87"
-details(d, bnm)
+details(d)
 ```
 """
-function details(a::uwreal, ws::wspace, io::IO=stdout, names::Dict{Int64, String} = Dict{Int64, String}())
+function details(a::uwreal, ws::wspace, io::IO=stdout)
     
     if (length(a.prop) == 0)
         print(a.mean)
@@ -390,7 +411,7 @@ function details(a::uwreal, ws::wspace, io::IO=stdout, names::Dict{Int64, String
         for i in 1:length(a.cfd)
             idx  = ws.map_ids[a.ids[ip[i]]]
             sndt = join(ws.fluc[idx].ivrep, ",")
-            sid = truncate_ascii(get(names, a.ids[ip[i]], string(a.ids[ip[i]])), ntrunc)
+            sid  = truncate_ascii(get_name_from_id(a.ids[ip[i]], ws), ntrunc)
             if (ws.fluc[idx].nd > 1)
                 Printf.@printf(io, "  #  %45s %6.2f   %s\n",
                         sid, 100.0 .* a.cfd[ip[i]].var ./ a.err^2, sndt)
@@ -404,7 +425,7 @@ function details(a::uwreal, ws::wspace, io::IO=stdout, names::Dict{Int64, String
     end
 end
 
-details(a::uwreal; io::IO=stdout, names::Dict{Int64, String} = Dict{Int64, String}()) = details(a, wsg, io, names)
+details(a::uwreal; io::IO=stdout) = details(a, wsg, io)
 
 """
     read_uwreal(fb[, map_ids::Dict{Int64, Int64}])
