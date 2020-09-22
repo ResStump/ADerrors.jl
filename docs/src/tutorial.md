@@ -141,14 +141,18 @@ for i in 2:10000
 end
 
 # x^2 only measured on odd configurations
-x2 = uwreal(x[1:2:9999].^2,  1001, collect(1:2:9999),  "Random walk in [-1,1]")
+x2 = uwreal(x[1:2:9999].^2,  "Random walk in [-1,1]", collect(1:2:9999),  10000)
 # x^4 only measured on even configurations
-x4 = uwreal(x[2:2:10000].^4, 1001, collect(2:2:10000), "Random walk in [-1,1]")
+x4 = uwreal(x[2:2:10000].^4, "Random walk in [-1,1]", collect(2:2:10000), 10000)
 ```
 the variables `x2` and `x4` are normal `uwreal` variables, and one can work with them as with any other variable. Note however that the automatic determination of the summation window can fail in these cases, because the autocorrelation function with missing measurements can be very complicated. For example
 ```@repl gaps
 rat = x2/x4 # This is perfectly fine
-uwerr(rat); # Use automatic window: might fail!
+try # Use automatic window: might fail!
+    uwerr(rat)
+catch e
+    println("Automatic window fails")
+end
 ```
 In this case `uwerr` complains because with the automatically chosen window the variance for ensemble with ID 1001 is negative. Let's have a look at the normalized autocorrelation function
 ```@repl gaps
@@ -164,7 +168,7 @@ savefig("rat_cf.png") # hide
 ![rat plot](rat_cf.png)
 The normalized autocorrelation function is oscillating, and the automatically chosen window is 2, producing a negative variance! We better fix the window to 50 for this case
 ```@repl gaps
-wpm = Dict{Int64, Vector{Float64}}()
+wpm = Dict{String, Vector{Float64}}()
 wpm["Random walk in [-1,1]"] = [50.0, -1.0, -1.0, -1.0]
 uwerr(rat, wpm) # repeat error analysis with our choice (window=50)
 println("Ratio: ", rat)
@@ -174,6 +178,7 @@ Note however that it is very difficult to anticipate which observables will have
 ```@repl gaps
 prod = x2*x4
 uwerr(prod)
+println("Product: ", prod)
 iw = window(prod, "Random walk in [-1,1]")
 r  = rho(prod, "Random walk in [-1,1]");
 dr = drho(prod, "Random walk in [-1,1]");
