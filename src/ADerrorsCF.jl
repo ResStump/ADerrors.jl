@@ -418,7 +418,10 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
         a.err  = sqrt(a.err)
         a.derr = sqrt(a.derr)
     else
-        println(stderr, "ID's with negative tau_int: ", get_name_from_id.(id_neg_taui))
+        println(stderr, "ID's with negative tau_int: ")
+        for i in 1:length(id_neg_taui)
+            println("     ",  get_name_from_id(id_neg_taui, ws))
+        end
         error("Error analysis failed for some ID's. Choose your window more carefully")
     end
 
