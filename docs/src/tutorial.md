@@ -154,7 +154,7 @@ catch e
     println("Automatic window fails")
 end
 ```
-In this case `uwerr` complains because with the automatically chosen window the variance for ensemble with ID 1001 is negative. Let's have a look at the normalized autocorrelation function
+In this case `uwerr` complains because with the automatically chosen window the variance for ensemble with ID `"Random walk in [-1,1]"` is negative. Let's have a look at the normalized autocorrelation function
 ```@repl gaps
 iw = window(rat, "Random walk in [-1,1]")
 r  = rho(rat, "Random walk in [-1,1]");
@@ -207,7 +207,7 @@ All observables are stored in a single `BDIO` record of type `BDIO_BIN_GENERIC`.
 - four (`Vector{Float64}(neid)`): just `neid` fours.
 - delta  (`Vector{Float64}`): The fluctuations for each ensemble.
 - name (NULL terminated `String`): A description of the observable.
-- `ID` tags: A list of `neid` tuples `(Int34, String)` that maps each numeric `ID` to an ensemble tag. All strings are NULL terminated.
+- `ID` tags: A list of `neid` tuples `(Int32, String)` that maps each numeric `ID` to an ensemble tag. All strings are NULL terminated.
 
 !!! alert
     Obviously this weird format is what it is for some legacy reasons, but it is strongly encouraged that new implementations respect this standard with all its weirdness. 

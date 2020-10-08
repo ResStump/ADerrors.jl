@@ -49,3 +49,5 @@ plot(collect(1:2*iw),
 	yerr = dr[1:2*iw], 
 	seriestype = :scatter, title = "Chosen Window: " * string(iw), label="autoCF")
 savefig("prod_cf.png") # hide
+
+(0==0)
