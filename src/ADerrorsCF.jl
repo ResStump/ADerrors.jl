@@ -305,7 +305,7 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
 
                 iw = wopt_ulli(nd_eff, DEFAULT_STAU, a.cfd[j].gamm)
                 a.cfd[j].iw = iw
-
+                
                 gwin  = view(a.cfd[j].gamm, 2:iw)
                 dbias = a.cfd[j].gamm[1] + 2.0*sum(gwin)
                 if (dbias > 0.0)
@@ -316,14 +316,14 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                 if (a.cfd[j].gamm[1] != 0.0)
                     @inbounds for i in 1:nt
                         is = max(1, i-iw-2) + 1
-                        ie = i + iw-1
+                        ie = is + iw-1
                         @inbounds for k in is:ie
                             if (k < nt+1)
                                 cont = -2.0*a.cfd[j].gamm[k]*a.cfd[j].gamm[i]/a.cfd[j].gamm[1]^2
                             else
                                 cont = 0.0
                             end
-
+                            
                             if ((i+k-2) < nt)
                                 cont = cont + a.cfd[j].gamm[i+k-1]/a.cfd[j].gamm[1]
                             end
@@ -465,13 +465,13 @@ function cov(a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
     for k in 1:length(a)
         for j in 1:length(a[k].ids)
             for i in 1:nid
-                if (a[k].ids[j] == ids[j])
+                if (a[k].ids[j] == ids[i])
                     iw[i] = max(iw[i], a[k].cfd[j].iw)
                 end
             end
         end
     end
-
+    
     wopt = Dict{Int64,Vector{Float64}}()
     for i in 1:nid
         wopt[ids[i]] = [Base.convert(Float64, iw[i]), -1.0, -1.0, -1.0]
