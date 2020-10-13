@@ -701,6 +701,57 @@ function dict_name_to_id(wpm::Dict{String, Vector{Float64}})
     return wp
 end
 
+"""
+    change_id(; from::String, to::String)
+
+Changes the ensemble `id` from the string/integer `from` to the string `to`. Note that a call to this routine will affect the output of all currently defined `uwreal` types that depend on ensemble `ID` `from`. On the other hand, it will not affect data that is read after the call to `change_id`. This means that:
+- All input should be performed **before** any calls to `change_id`.
+- All output (i.e. calls to `write_uwreal` or `details`) is affected by previous calls to `change_id`
+
+```@example
+using ADerrors # hide
+a = uwreal([1.2, 0.2], "Simple var with error")   # a = 1.2 +/- 0.2
+b = uwreal([1.2, 0.2], 1233)  # c = 1.2 +/- 0.2
+
+d = a-b
+uwerr(d)
+details(d)
+
+change_id(from=1233, to="Error source from experiment")
+change_id(from="Simple var with error", to="Error source from simulations")
+details(d)
+```
+"""
+function change_id(ws::wspace; from::Union{String,Int64}, to::String)
+
+    if (isa(from, Int64))
+        id = from
+    else
+        id = get(ws.str2id, from, nothing)
+    end
+    
+    if id == nothing
+        error("ID does not exists in database")
+    else
+        if haskey(ws.str2id, to)
+            error("Destination ID already exists in the database")
+        else
+            ws.id2str[id] = to
+            ws.str2id[to] = id
+            
+            if (isa(from, Int64))
+                delete!(ws.str2id, string(from))
+            else
+                delete!(ws.str2id, from)
+            end
+        end
+    end
+
+    return nothing
+end
+
+change_id(; from::Union{String,Int64}, to::String) = change_id(wsg, from=from, to=to)
+
 
 """
     uwreal(x::Float64)

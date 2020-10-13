@@ -7,6 +7,12 @@ uwreal
 cobs
 ```
 
+## Managing the emsemble `ID` database
+
+```@docs
+change_id
+```
+
 ## I/O
 
 ```@docs

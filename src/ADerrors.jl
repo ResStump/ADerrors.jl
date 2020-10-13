@@ -33,7 +33,7 @@ include("ADerrorsTools.jl")
 include("ADerrorsUtils.jl")
 
 export err, value, derror, taui, dtaui, window, rho, drho, details
-export uwreal, uwerr
+export uwreal, uwerr, change_id
 export cov, trcov, trcorr, neid
 export read_uwreal, write_uwreal
 export addobs, cobs
