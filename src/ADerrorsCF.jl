@@ -66,7 +66,7 @@ function get_id_from_name(str::String, ws::wspace)
         id = ws.str2id[str]
     else
         if is_int32(str)
-            id = Base.tryparse(Int32, str)
+            id = convert(Int64, Base.tryparse(Int32, str))
         else
             id = get_new_id(ws)
         end
