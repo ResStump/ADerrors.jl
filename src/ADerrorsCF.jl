@@ -148,7 +148,11 @@ function add_DB(delta::Vector{Float64}, id::Int64, iv::Vector{Int64}, ws::wspace
     end
 
     if do_maps
-        add_maps(id, ws, iv)
+        if (nd == 1)
+            add_maps(id, ws, [1])
+        else
+            add_maps(id, ws, iv)
+        end
     end
 
     return nothing
