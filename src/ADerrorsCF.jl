@@ -90,12 +90,25 @@ function get_name_from_id(id::Int64, ws::wspace)
     return str
 end
     
-function add_maps(id::Int64, ws::wspace)
+function add_maps(id::Int64, ws::wspace, iv::Vector{Int64})
 
     ws.nob += 1
     push!(ws.map_nob, id)
     if (!haskey(ws.map_ids, id))
         ws.map_ids[id] = ws.nob
+    else
+        if (sum(iv) != ws.fluc[ws.map_ids[id]].nd)
+            println(stderr, "ID:         ", ws.id2str[id])
+            println(stderr, "DB  length: ", ws.fluc[ws.map_ids[id]].nd)
+            println(stderr, "obs length: ", sum(iv))
+            error("Mistmatch in data length for the same ensemble ID")
+        end
+        if (iv != ws.fluc[ws.map_ids[id]].ivrep)
+            println(stderr, "ID:          ", ws.id2str[id])
+            println(stderr, "DB  replica: ", ws.fluc[ws.map_ids[id]].ivrep)
+            println(stderr, "obs replica: ", iv)
+            error("Mistmatch in replica vector for the same ensemble ID")
+        end
     end
 
     return nothing
@@ -113,21 +126,6 @@ function add_DB(delta::Vector{Float64}, id::Int64, iv::Vector{Int64}, ws::wspace
         if (sum(iv) != length(delta))
             println(stderr, "ID:          ", id)
             ArgumentError("Sum of replica length does not match number of measurements")
-        end
-
-        if (haskey(ws.map_ids, id))
-            if (length(delta) != ws.fluc[ws.map_ids[id]].nd)
-                println(stderr, "ID:         ", id)
-                println(stderr, "DB  length: ", ws.fluc[ws.map_ids[id]].nd)
-                println(stderr, "obs length: ", length(delta))
-                error("Mistmatch in data length for the same ensemble ID")
-            end
-            if (iv != ws.fluc[ws.map_ids[id]].ivrep)
-                println(stderr, "ID:          ", id)
-                println(stderr, "DB  replica: ", ws.fluc[ws.map_ids[id]].ivrep)
-                println(stderr, "obs replica: ", iv)
-                error("Mistmatch in replica vector for the same ensemble ID")
-            end
         end
 
         fseries = Dict{Int64,Vector{Complex{Float64}}}()
@@ -150,7 +148,7 @@ function add_DB(delta::Vector{Float64}, id::Int64, iv::Vector{Int64}, ws::wspace
     end
 
     if do_maps
-        add_maps(id, ws)
+        add_maps(id, ws, iv)
     end
 
     return nothing

@@ -284,20 +284,28 @@ function read_bdio(fb, ws::wspace, mapids::Dict{Int64, Int64})
     end
 
     if BDIO.BDIO_eor(fb)
+        is = 1
         for i in 1:nid
+            ie = is + nrep[i] - 1
             id = convert(Int64, ids[i])
-            add_maps(id, ws)
+            add_maps(id, ws, convert(Vector{Int64}, ivrep[is:ie]))
             get_name_from_id(id, ws)
+            
+            is = ie + 1
         end
     else
         name = BDIO.BDIO_read_str(fb)
 
+        is = 1
         for i in 1:nid
+            ie = is + nrep[i] - 1
             BDIO.BDIO_read(fb, ifoo)
             str = BDIO.BDIO_read_str(fb)
 
             id = get_id_from_name(str, ws)
-            add_maps(id, ws)
+            add_maps(id, ws, convert(Vector{Int64}, ivrep[is:ie]))
+
+            is = ie + 1
         end
     end
     
