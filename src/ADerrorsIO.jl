@@ -237,6 +237,51 @@ function drho(a::uwreal, mcid::Int64)
     end
 end
 
+"""
+    mchist(a::uwreal, mcid)
+
+Returns the fluctuations of the `uwreal` variable `a` on ensemble `mcid`. It is assumed that `uwerr` has been run on the variable and that `mcid` contributes to the observable `a`. Otherwise an error message is printed.
+
+```@example
+using ADerrors # hide
+# Generate some correlated data
+eta  = randn(1000)
+x    = Vector{Float64}(undef, 1000)
+x[1] = 0.0
+for i in 2:1000
+    x[i] = x[i-1] + eta[i]
+    if abs(x[i]) > 1.0
+        x[i] = x[i-1]
+    end
+end
+
+a = uwreal(x.^2, "Some simple ensemble")
+uwerr(a)
+v = mchist(a, "Some simple ensemble")
+for i in 1:length(v)
+    println(i, " ", v[i])
+end
+```
+"""
+function mchist(a::uwreal, mcid::Int64, ws::wspace)
+    idx = find_mcid(a, mcid)
+    if (idx == nothing)
+        error("No error available... maybe run uwerr")
+    else
+        nd = ws.fluc[ws.map_ids[a.ids[idx]]].nd
+        dt = zeros(Float64, nd)
+        for j in 1:length(a.prop)
+            if (a.prop[j] && (ws.map_nob[j] == a.ids[idx]))
+                dt .= dt .+ a.der[j] .* ws.fluc[j].delta
+            end
+        end
+        
+        return dt
+    end
+end
+
+mchist(a::uwreal, mcid::Int64) = mchist(a, mcid, wsg) 
+
 function read_bdio(fb, ws::wspace, mapids::Dict{Int64, Int64})
 
     dfoo = zeros(Float64, 1)
@@ -308,6 +353,28 @@ function read_bdio(fb, ws::wspace, mapids::Dict{Int64, Int64})
             is = ie + 1
         end
     end
+
+    if BDIO.BDIO_eor(fb)
+        for i in 1:nid
+            v = Vector{String}(undef, nrep[i])
+            BDIO.BDIO_read(fb, ifoo)
+            str = get_name_from_id(ids[i], ws)
+            for j in 1:nrep[i]
+                v[j] = str*"_r"*string(j)
+            end
+            add_repnames(convert(Int64, ids[i]), ws, v)
+        end
+    else
+        for i in 1:nid
+            v = Vector{String}(undef, nrep[i])
+            BDIO.BDIO_read(fb, ifoo)
+            for j in 1:nrep[i]
+                v[j] = BDIO.BDIO_read_str(fb)
+            end
+            add_repnames(convert(Int64, ids[i]), ws, v)
+        end
+    end
+
     
     return uwreal(dfoo[1], p, d)
 end
@@ -360,6 +427,14 @@ function write_bdio(p::uwreal, fb, iu::Int, ws::wspace; name="NO NAME")
         BDIO.BDIO_write!(fb, [convert(Int32, p.ids[i])])
         BDIO.BDIO_write!(fb, get_name_from_id(p.ids[i], ws)*"\0")
     end
+
+    for i in 1:nid
+        BDIO.BDIO_write!(fb, [convert(Int32, p.ids[i])])
+        v = get_repnames_from_id(p.ids[i], ws)
+        for j in 1:length(v)
+            BDIO.BDIO_write!(fb, v[j]*"\0")
+        end
+    end
     
     BDIO.BDIO_write_hash!(fb)
 
@@ -367,24 +442,58 @@ function write_bdio(p::uwreal, fb, iu::Int, ws::wspace; name="NO NAME")
 end
 
 """
+    ensembles(a::uwreal)
+
+Returns the list of ensembles in lexicographic order contributing to the error of `a` as a `Vector{String}`.
+```@example
+using ADerrors # hide
+using BDIO
+a = uwreal(rand(2000), "Ensemble A")
+b = uwreal(rand(2034), "Ensemble B")
+c = sin(a+b)
+for i in ensembles(c)
+    println("Ensemble "*str*" contributing")
+end
+```
+"""
+function ensembles(a::uwreal, ws::wspace)
+
+    nids  = length(a.ids)
+    enlst = Vector{String}(undef, nids)
+
+    for i in 1:nids
+        enlst[i] = get_name_from_id(a.ids[i], ws)
+    end
+    ip = sort!(enlst, rev=true)
+
+    return enlst
+end
+ensembles(a::uwreal) = ensembles(a, wsg)
+
+
+"""
     details(a::uwreal; io::IO=stdout, names::Dict{Int64, String} = Dict{Int64, String}())
+    details(a::uwreal, ensemble::String, ws::wspace, io::IO=stdout)
 
 Write out a detailed information on the error of `a`.
 
 ## Arguments
 
-Optionally one can pass as a keyword argument (`io`) the `IO` stream to write to.
+If a the ergument `ensemble` is present, this routine writes information of the fluctuations of the observable in this ensemble. Optionally one can pass as a keyword argument (`io`) the `IO` stream to write to.
 
 ## Example
 ```@example
 using ADerrors # hide
-a = uwreal(rand(2000),   "Ensemble A12")
+a = uwreal(rand(2000),   "Ensemble A12", ["A12 REP 0", "A12 REP 1", "A12 REP 2"], [1000, 500, 500])
 b = uwreal([1.2, 0.023], "Ensemble XYZ")
 c = uwreal([5.2, 0.03],  "Ensemble RRR")
 d = a + b - c
 uwerr(d)
 
 details(d)
+for en in ensembles(d)
+    details(d, en)
+end
 ```
 """
 function details(a::uwreal, ws::wspace, io::IO=stdout)
@@ -434,6 +543,50 @@ function details(a::uwreal, ws::wspace, io::IO=stdout)
 end
 
 details(a::uwreal; io::IO=stdout) = details(a, wsg, io)
+
+function details(a::uwreal, str::String, ws::wspace, io::IO=stdout)
+
+    if (length(a.prop) == 0)
+        print(a.mean)
+        return
+    end
+
+    if (length(a.cfd) > 0) 
+        println(io, a.mean, " +/- ", a.err)
+
+        nids  = length(a.ids)
+        for i in 1:nids
+            idx  = ws.map_ids[a.ids[i]]
+            if get_name_from_id(a.ids[i], ws) == str
+                nd = ws.fluc[ws.map_ids[a.ids[i]]].nd
+                dt = zeros(Float64, nd)
+                for j in 1:length(a.prop)
+                    if (a.prop[j] && (ws.map_nob[j] == a.ids[i]))
+                        dt .= dt .+ a.der[j] .* ws.fluc[j].delta
+                    end
+                end
+                
+                Printf.@printf(io, " ## Contribution of ensemble %s to error: %6.2f%s\n",
+                        str, 100.0 .* a.cfd[i].var ./ a.err^2, "%")
+                println(io, " ## Ensemble details: ")
+                nc = 1
+                is = 1
+                for k in get_repnames_from_id(a.ids[i], ws)
+                    ie = is + ws.fluc[idx].ivrep[nc] - 1
+                    Printf.@printf(io, "  # Replica: %s (length: %8d): %f +/- %f\n", k, ws.fluc[idx].ivrep[nc],
+                                   a.mean + sum(@view dt[is:ie])/ws.fluc[idx].ivrep[nc],
+                                   sqrt(a.cfd[i].var*sum(ws.fluc[idx].ivrep)/ws.fluc[idx].ivrep[nc]))
+                    nc = nc + 1
+                    is = ie + 1
+                end
+            end
+        end
+    end
+
+    return 
+end
+
+details(a::uwreal, str::String; io::IO=stdout) = details(a, str, wsg, io)
 
 """
     read_uwreal(fb[, map_ids::Dict{Int64, Int64}])

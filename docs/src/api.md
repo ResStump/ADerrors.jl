@@ -11,6 +11,7 @@ cobs
 
 ```@docs
 change_id
+ensembles
 ```
 
 ## I/O
@@ -40,6 +41,7 @@ taui
 dtaui
 rho
 drho
+mchist
 window
 details
 neid

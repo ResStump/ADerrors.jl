@@ -89,7 +89,23 @@ function get_name_from_id(id::Int64, ws::wspace)
 
     return str
 end
+
+function add_repnames(id::Int64, ws::wspace, rname::Vector{String})
+
+    if haskey(ws.repnam, id)
+        for i in 1:length(rname)
+            if rname[i] != ws.repnam[id][i]
+                error("Mistmatch in replica names for ensemble: "*get_name_from_id(id,ws))
+            end
+        end
+    else
+        ws.repnam[id] = rname
+    end
+        
+end
     
+get_repnames_from_id(id::Int64, ws::wspace) = ws.repnam[id]
+
 function add_maps(id::Int64, ws::wspace, iv::Vector{Int64})
 
     ws.nob += 1
@@ -683,6 +699,7 @@ wsg = ADerrors.wspace(similar(Vector{ADerrors.fbd}, 0),
                       similar(Vector{Int64}, 0),
                       Dict{Int64, Int64}(),
                       Dict{Int64, String}(), Dict{String, Int64}(),
+                      Dict{Int64, Vector{String}}(), 
                       -12345)
 
 get_id_from_name(str::String) = get_id_from_name(str, wsg)
@@ -691,6 +708,7 @@ dtaui(a::uwreal, str::String) = dtaui(a, get_id_from_name(str))
 window(a::uwreal, str::String) = window(a, get_id_from_name(str))
 rho(a::uwreal, str::String) = rho(a, get_id_from_name(str))
 drho(a::uwreal, str::String) = drho(a, get_id_from_name(str))
+mchist(a::uwreal, str::String) = mchist(a, get_id_from_name(str))
 
 empt = Dict{Int64,Vector{Float64}}()
 
@@ -851,30 +869,116 @@ uwreal(data::Vector{Float64},
                                          idm,
                                          nms)
 
-uwreal(data::Vector{Float64}, str::String) = ADerrors.uwcls(data,
-                                   get_id_from_name(str, wsg),
-                                   wsg,
-                                   [length(data)])
-uwreal(data::Vector{Float64},
-       str::String,
-       iv::Vector{Int64}) = ADerrors.uwcls(data, get_id_from_name(str, wsg), wsg, iv)
-uwreal(data::Vector{Float64},
-       str::String,
-       idm::Vector{Int64},
-       nms::Int64) = ADerrors.uwcls_gaps(data,
+function uwreal(data::Vector{Float64}, str::String)
+    uw = ADerrors.uwcls(data,
+                        get_id_from_name(str, wsg),
+                        wsg,
+                        [length(data)])
+    v = [str*"_r0"]
+    add_repnames(get_id_from_name(str, wsg), wsg, v)
+
+    return uw
+end
+
+function uwreal(data::Vector{Float64},
+                str::String,
+                iv::Vector{Int64})
+    
+    uw = ADerrors.uwcls(data, get_id_from_name(str, wsg), wsg, iv)
+    v = Vector{String}(undef, length(iv))
+    for i in 1:length(v)
+        v[i] = str*"r"*string(i-1)
+    end
+    add_repnames(get_id_from_name(str, wsg), wsg, v)
+    
+    return uw
+end
+
+function uwreal(data::Vector{Float64},
+                str::String,
+                idm::Vector{Int64},
+                nms::Int64)
+
+    uw = ADerrors.uwcls_gaps(data,
                     get_id_from_name(str, wsg), wsg,
                     [nms],
                     idm,
                     nms)
-uwreal(data::Vector{Float64},
-       str::String,
-       iv::Vector{Int64},
-       idm::Vector{Int64},
-       nms::Int64) = ADerrors.uwcls_gaps(data,
-                                         get_id_from_name(str, wsg),
-                                         iv,
-                                         idm,
-                                         nms)
+    v = [str*"_r0"]
+    add_repnames(get_id_from_name(str, wsg), wsg, v)
+
+    return uw
+end
+
+function uwreal(data::Vector{Float64},
+                str::String,
+                iv::Vector{Int64},
+                idm::Vector{Int64},
+                nms::Int64)
+    uw = ADerrors.uwcls_gaps(data,
+                             get_id_from_name(str, wsg),
+                             iv,
+                             idm,
+                             nms)
+    v = Vector{String}(undef, length(iv))
+    for i in 1:length(v)
+        v[i] = str*"r"*string(i-1)
+    end
+    add_repnames(get_id_from_name(str, wsg), wsg, v)
+
+    return uw
+end
+    
+
+function uwreal(data::Vector{Float64}, str::String, rname::Vector{String})
+    uw = ADerrors.uwcls(data,
+                        get_id_from_name(str, wsg),
+                        wsg,
+                        [length(data)])
+    add_repnames(get_id_from_name(str, wsg), wsg, rname)
+
+    return uw
+end
+
+function uwreal(data::Vector{Float64},
+                str::String, rname::Vector{String},
+                iv::Vector{Int64})
+    
+    uw = ADerrors.uwcls(data, get_id_from_name(str, wsg), wsg, iv)
+    add_repnames(get_id_from_name(str, wsg), wsg, rname)
+    
+    return uw
+end
+
+function uwreal(data::Vector{Float64},
+                str::String, rname::Vector{String},
+                idm::Vector{Int64},
+                nms::Int64)
+
+    uw = ADerrors.uwcls_gaps(data,
+                    get_id_from_name(str, wsg), wsg,
+                    [nms],
+                    idm,
+                    nms)
+    add_repnames(get_id_from_name(str, wsg), wsg, rname)
+
+    return uw
+end
+
+function uwreal(data::Vector{Float64},
+                str::String, rname::Vector{String},
+                iv::Vector{Int64},
+                idm::Vector{Int64},
+                nms::Int64)
+    uw = ADerrors.uwcls_gaps(data,
+                             get_id_from_name(str, wsg),
+                             iv,
+                             idm,
+                             nms)
+    add_repnames(get_id_from_name(str, wsg), wsg, rname)
+
+    return uw
+end
 
 
 @doc raw"""

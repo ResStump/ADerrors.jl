@@ -65,6 +65,7 @@ mutable struct fbd
     delta::Array{Float64, 1}
     ivrep::Array{Int64, 1}
     fourier::Dict{Int64,Vector{Complex{Float64}}}
+#    repname::Vector{String}
 end
 
 mutable struct wspace
@@ -76,7 +77,8 @@ mutable struct wspace
 
     id2str::Dict{Int64, String} # Ensemble id for each String
     str2id::Dict{String, Int64} # Ensemble String for each id
-
+    repnam::Dict{Int64, Vector{String}} # Vector of replica names for each id
+    
     newid::Int64
 end
 
