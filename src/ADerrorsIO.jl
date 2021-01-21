@@ -328,13 +328,14 @@ function read_bdio(fb, ws::wspace, mapids::Dict{Int64, Int64})
         is = ie + 1
     end
 
+    ids_obs = Vector{Int64}(undef, nid)
     if BDIO.BDIO_eor(fb)
         is = 1
         for i in 1:nid
             ie = is + nrep[i] - 1
-            id = convert(Int64, ids[i])
-            add_maps(id, ws, convert(Vector{Int64}, ivrep[is:ie]))
-            get_name_from_id(id, ws)
+            ids_obs[i] = convert(Int64, ids[i])
+            add_maps(ids_obs[i], ws, convert(Vector{Int64}, ivrep[is:ie]))
+            get_name_from_id(ids_obs[i], ws)
             
             is = ie + 1
         end
@@ -347,13 +348,14 @@ function read_bdio(fb, ws::wspace, mapids::Dict{Int64, Int64})
             BDIO.BDIO_read(fb, ifoo)
             str = BDIO.BDIO_read_str(fb)
 
-            id = get_id_from_name(str, ws)
-            add_maps(id, ws, convert(Vector{Int64}, ivrep[is:ie]))
+            ids_obs[i] = get_id_from_name(str, ws)
+            add_maps(ids_obs[i], ws, convert(Vector{Int64}, ivrep[is:ie]))
 
             is = ie + 1
         end
     end
 
+    # Here not to use ids[i]
     if BDIO.BDIO_eor(fb)
         for i in 1:nid
             v = Vector{String}(undef, nrep[i])
@@ -362,7 +364,7 @@ function read_bdio(fb, ws::wspace, mapids::Dict{Int64, Int64})
             for j in 1:nrep[i]
                 v[j] = str*"_r"*string(j)
             end
-            add_repnames(convert(Int64, ids[i]), ws, v)
+            add_repnames(convert(Int64, ids_obs[i]), ws, v)
         end
     else
         for i in 1:nid
@@ -371,7 +373,7 @@ function read_bdio(fb, ws::wspace, mapids::Dict{Int64, Int64})
             for j in 1:nrep[i]
                 v[j] = BDIO.BDIO_read_str(fb)
             end
-            add_repnames(convert(Int64, ids[i]), ws, v)
+            add_repnames(convert(Int64, ids_obs[i]), ws, v)
         end
     end
 
