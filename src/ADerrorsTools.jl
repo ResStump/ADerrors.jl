@@ -10,6 +10,40 @@
 ###                               
 
 """
+    derivative(a::uwreal, b::uwreal)
+
+Determines the derivate of the observable `a` with respect to observable `b` (i.e. ``\frac{{\rm d} a}{{\rm d} b}). Observable `b` must depend on only a single ensemble (typically `b` is just a primary observable). 
+```@example
+using ADerrors # hide
+
+# Put some data 
+a = uwreal(randn(2000), "Ensemble test A", ["R0", "Rep 1", "Last rep"], [1000, 550, 450])
+b = uwreal(randn(2034), "Ensemble test B", ["R0XX", "XRep 1", "YLast rep"], [1000, 584, 450])
+
+d = sin(a+b)
+println("Derivative of d w.r.t a:   ", derivative(d, a))
+println("Derivative of d w.r.t a^2: ", derivative(d, a^2))
+```
+"""
+function derivative(a::uwreal, p::uwreal)
+
+    if count(p.prop .== true) != 1
+        error("I do not know how to compute this")
+    end
+    
+    for i in 1:min(length(a.der),length(p.der))
+        if (p.prop[i] && a.prop[i])
+            return res = a.der[i]/p.der[i]
+        end 
+    end 
+    
+    return 0.0
+
+
+end
+
+
+"""
     cobs(avgs::Vector{Float64}, Mcov::Array{Float64, 2}, str::String)
     cobs(avgs::Vector{Float64}, Mcov::Array{Float64, 2}, ids::Vector{Int64})
 
@@ -38,16 +72,41 @@ println("Better be zero: ", sum((Mcov.-Mcov2).^2))
 """
 function cobs(avgs::Vector{Float64}, cov::Array{Float64, 2}, ids::Vector{Int64})
 
-    ch = LinearAlgebra.cholesky(cov)
 
     n = length(avgs)
     p = Vector{uwreal}(undef, n)
-    for j in 1:n
-        p[j] = uwreal([avgs[j], ch.L[j, 1]], ids[1])
-        for i in 2:n
-            p[j] = p[j] + uwreal([0.0, ch.L[j,i]], ids[i])
+    try
+        ch = LinearAlgebra.cholesky(cov)
+        
+        for j in 1:n
+            p[j] = uwreal([avgs[j], ch.L[j, 1]], ids[1])
+            for i in 2:n
+                p[j] = p[j] + uwreal([0.0, ch.L[j,i]], ids[i])
+            end
         end
+
+        return p
+    catch
+        usvt = LinearAlgebra.svd(cov)
+        SS = similar(usvt.S)
+        for i in eachindex(SS)
+            if (usvt.S[i] > 1.0e-6)
+                SS[i] = usvt.S[i]
+            else
+                SS[i] = 0.0
+            end
+        end
+        A    = usvt.U * Diagonal(sqrt.(usvt.S))
+
+        for j in 1:n
+            p[j] = uwreal([avgs[j], A[j, 1]], ids[1])
+            for i in 2:n
+                p[j] = p[j] + uwreal([0.0, A[j,i]], ids[i])
+            end
+        end
+        
     end
+    
     return p
 end
 
