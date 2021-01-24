@@ -34,7 +34,7 @@ include("ADerrorsUtils.jl")
 
 export err, value, derror, taui, dtaui, window, rho, drho, details, ensembles, mchist
 export uwreal, uwerr, change_id
-export cov, trcov, trcorr, neid
+export cov, trcov, trcorr, neid, derivative
 export read_uwreal, write_uwreal
 export addobs, cobs
 export root_error, chiexp, fit_error, int_error

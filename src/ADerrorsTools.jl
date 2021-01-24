@@ -104,7 +104,6 @@ function cobs(avgs::Vector{Float64}, cov::Array{Float64, 2}, ids::Vector{Int64})
                 p[j] = p[j] + uwreal([0.0, A[j,i]], ids[i])
             end
         end
-        
     end
     
     return p

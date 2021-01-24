@@ -200,7 +200,7 @@ All observables are stored in a single `BDIO` record of type `BDIO_BIN_GENERIC`.
 - neid (`Int32`): The number of ensembles contributing to the observable.
 - ndata (`Vector{Int32}(neid)`): The length of each ensemble.
 - nrep (`Vector{Int32}(neid)`): The number of replica of each enemble.
-- vrep (`Vector{Int32}`): The replica vector for each ensemble.
+- vrep (`Vector{Int32}`): A vector with length the number of replica that contains the number of measurements in each replica.
 - ids (`Vector{Int32}(neid)`): The ensemble numeric `ID`'s.
 - nt (`Vector{Int32}(neid)`): Half the largest replica of each ensemble.
 - zero (`Vector{Float64}(neid)`): just `neid` zeros.
@@ -208,9 +208,10 @@ All observables are stored in a single `BDIO` record of type `BDIO_BIN_GENERIC`.
 - delta  (`Vector{Float64}`): The fluctuations for each ensemble.
 - name (NULL terminated `String`): A description of the observable.
 - `ID` tags: A list of `neid` tuples `(Int32, String)` that maps each numeric `ID` to an ensemble tag. All strings are NULL terminated.
-- Replica names: A list of `neid` tuples `(Int32, Vector{String})`
-  that maps each numeric `ID` to a vector of replica names. All
-  strings are NULL terminated. 
+- Replica details: `neid` times the following information: 
+  - First an `Int32` wiht the numeric `ID` tag of the ensemble. 
+  - Then a `Vector{String}` that contains the replica names. 
+  - Finally a `Vector{Int32}` that contains the the configuration index where each measurement has been performed. 
 
 !!! alert
     Obviously this weird format is what it is for some legacy reasons, but it is strongly encouraged that new implementations respect this standard with all its weirdness. 

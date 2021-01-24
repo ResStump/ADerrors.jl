@@ -78,6 +78,7 @@ mutable struct wspace
     id2str::Dict{Int64, String} # Ensemble id for each String
     str2id::Dict{String, Int64} # Ensemble String for each id
     repnam::Dict{Int64, Vector{String}} # Vector of replica names for each id
+    repidc::Dict{Int64, Vector{Int64}}  # Configuration number for each replicum
     
     newid::Int64
 end
