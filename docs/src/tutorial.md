@@ -213,6 +213,12 @@ All observables are stored in a single `BDIO` record of type `BDIO_BIN_GENERIC`.
   - Then a `Vector{String}` that contains the replica names. 
   - Finally a `Vector{Int32}` that contains the the configuration index where each measurement has been performed. 
 
+It is encouraged that the first record of the `BDIO` file is an
+`ASCII` human readable record explaining the estructure of the file. By
+convention, this record has `user info=1`. An example file containing
+the 
+
+
 !!! alert
     Obviously this weird format is what it is for some legacy reasons, but it is strongly encouraged that new implementations respect this standard with all its weirdness. 
 

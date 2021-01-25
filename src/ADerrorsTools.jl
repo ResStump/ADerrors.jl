@@ -17,12 +17,12 @@ Determines the derivate of the observable `a` with respect to observable `b` (i.
 using ADerrors # hide
 
 # Put some data 
-a = uwreal(randn(2000), "Ensemble test A", ["R0", "Rep 1", "Last rep"], [1000, 550, 450])
-b = uwreal(randn(2034), "Ensemble test B", ["R0XX", "XRep 1", "YLast rep"], [1000, 584, 450])
+a = uwreal(1.2 .+ randn(2000), "Ensemble test A", ["R0", "Rep 1", "Last rep"], [1000, 550, 450])
+b = uwreal(0.8 .+ randn(2034), "Ensemble test B", [1000, 584, 450])
 
 d = sin(a+b)
-println("Derivative of d w.r.t a:   ", derivative(d, a))
-println("Derivative of d w.r.t a^2: ", derivative(d, a^2))
+println("Derivative of d w.r.t a:      ", derivative(d, a))
+println("Derivative of d w.r.t log(a): ", derivative(d, log(a)))
 ```
 """
 function derivative(a::uwreal, p::uwreal)

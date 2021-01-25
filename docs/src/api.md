@@ -45,6 +45,7 @@ mchist
 window
 details
 neid
+derivative
 ```
 
 ## Error propagation in iterative algorithms
