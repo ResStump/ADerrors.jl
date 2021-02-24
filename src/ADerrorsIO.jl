@@ -365,12 +365,17 @@ function read_bdio(fb, ws::wspace, mapids::Dict{Int64, Int64})
             BDIO.BDIO_read(fb, ifoo)
             str = get_name_from_id(convert(Int64, ids[i]), ws)
             for j in 1:nrep[i]
-                v[j] = str*"_r"*string(j)
-                for k in is:ie
-                    idc[k] = convert(Int32, k-is+1)
-                end
+                v[j] = str*"_r"*string(j-1)
             end
-            add_repnames(convert(Int64, ids_obs[i]), ws, v, idc)
+
+            iof = 0
+            for j in 1:nrep[i]
+                for k in 1:ivrep[is+j-1]
+                    idc[k+iof] = convert(Int32, k)
+                end
+                iof = iof + ivrep[is+j-1]
+            end
+            add_repnames(convert(Int64, ids_obs[i]), ws, v, convert(Vector{Int64}, idc))
             is = ie + 1
         end
     else
