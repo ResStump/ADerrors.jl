@@ -362,7 +362,6 @@ function read_bdio(fb, ws::wspace, mapids::Dict{Int64, Int64})
             ie = is + nrep[i] - 1
             v = Vector{String}(undef, nrep[i])
             idc = Vector{Int32}(undef, nds[i])
-            BDIO.BDIO_read(fb, ifoo)
             str = get_name_from_id(convert(Int64, ids[i]), ws)
             for j in 1:nrep[i]
                 v[j] = str*"_r"*string(j-1)
