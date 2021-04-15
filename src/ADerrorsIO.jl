@@ -36,6 +36,9 @@ println("a has error: ", err(a))
 ```
 """
 function err(a::uwreal)
+    if (length(a.prop) == 0)
+        return 0.0
+    end
     if (length(a.cfd) == 0)
         error("No error available... maybe run uwerr")
     end

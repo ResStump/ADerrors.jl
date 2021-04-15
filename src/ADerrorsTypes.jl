@@ -108,3 +108,7 @@ function Base.show(io::IO, a::uwreal)
         print(io, a.mean, " (Error not available... maybe run uwerr)")
     end
 end
+
+Base.zero(u::uwreal) = uwreal(0.0)
+Base.one(u::uwreal)  = uwreal(1.0)
+Base.one(u::Type{uwreal})  = uwreal(1.0)
