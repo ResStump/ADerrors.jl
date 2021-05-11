@@ -279,7 +279,7 @@ println("chi^2 / chi_exp^2: ", chisq(xp, value.(dt)), " / ", csqexp, "  (dof: ",
 function fit_error(chisq::Function,
                    xp::Vector{Float64}, 
                    data::Vector{uwreal},
-                   wpm::Dict{Int64,Vector{Float64}};
+                   wpm::Dict{Int64,Vector{Float64}},
                    W::Vector{Float64} = Vector{Float64}(),
                    chi_exp::Bool = true)
 
@@ -342,7 +342,7 @@ function fit_error(chisq::Function,
                    xp::Vector{Float64}, 
                    data::Vector{uwreal},
                    wpm::Dict{Int64,Vector{Float64}},
-                   W::Array{Float64, 2};
+                   W::Array{Float64, 2},
                    chi_exp::Bool = true)
 
     n = length(xp)   # Number of fit parameters
@@ -388,30 +388,16 @@ end
 fit_error(chisq::Function,
           xp::Vector{Float64}, 
           data::Vector{uwreal};
-          W::Vector{Float64} = Vector{Float64}(),
+          W::Union{Vector{Float64}, Array{Float64,2}} = Vector{Float64}(),
           chi_exp::Bool = true) = 
-              fit_error(chisq, xp, data, Dict{Int64,Vector{Float64}}(), W=W, chi_exp=chi_exp)
-fit_error(chisq::Function,
-          xp::Vector{Float64}, 
-          data::Vector{uwreal},
-          W::Array{Float64,2};
-          chi_exp::Bool = true) = 
-              fit_error(chisq, xp, data, Dict{Int64,Vector{Float64}}(), W=W, chi_exp=chi_exp)
+              fit_error(chisq, xp, data, Dict{Int64,Vector{Float64}}(), W, chi_exp)
 fit_error(chisq::Function,
           xp::Vector{Float64}, 
           data::Vector{uwreal},
           wpm::Dict{String,Vector{Float64}};
-          W::Vector{Float64} = Vector{Float64}(),
+          W::Union{Vector{Float64}, Array{Float64,2}} = Vector{Float64}(),
           chi_exp::Bool = true) = 
-              fit_error(chisq, xp, data, dict_names_to_id(wpm), W=W, chi_exp=chi_exp)
-fit_error(chisq::Function,
-          xp::Vector{Float64}, 
-          data::Vector{uwreal},
-          wpm::Dict{String,Vector{Float64}},
-          W::Array{Float64,2};
-          chi_exp::Bool = true) = 
-              fit_error(chisq, xp, data, dict_names_to_id(wpm), W=W, chi_exp=chi_exp)
-
+              fit_error(chisq, xp, data, dict_names_to_id(wpm), W, chi_exp)
 
 @doc raw"""
     int_error(fint::Function, a, b, p::Vector{uwreal})
