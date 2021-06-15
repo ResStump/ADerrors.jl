@@ -210,7 +210,7 @@ chiexp(chisq::Function,
        data::Vector{uwreal},
        wpm::Dict{String,Vector{Float64}};
        W::Vector{Float64} = Vector{Float64}()) = 
-           chiexp(chisq, xp, data, dict_names_to_id(wpm), W=W)
+           chiexp(chisq, xp, data, dict_name_to_id(wpm), W=W)
 
 
 
@@ -397,7 +397,7 @@ fit_error(chisq::Function,
           wpm::Dict{String,Vector{Float64}};
           W::Union{Vector{Float64}, Array{Float64,2}} = Vector{Float64}(),
           chi_exp::Bool = true) = 
-              fit_error(chisq, xp, data, dict_names_to_id(wpm), W, chi_exp)
+              fit_error(chisq, xp, data, dict_name_to_id(wpm), W, chi_exp)
 
 @doc raw"""
     int_error(fint::Function, a, b, p::Vector{uwreal})
