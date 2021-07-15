@@ -928,7 +928,7 @@ function uwreal(data::Vector{Float64},
                 idm::Vector{Int64},
                 nms::Int64)
     uw = ADerrors.uwcls_gaps(data,
-                             get_id_from_name(str, wsg),
+                             get_id_from_name(str, wsg), wsg, 
                              iv,
                              idm,
                              nms)
@@ -1001,7 +1001,7 @@ function uwreal(data::Vector{Float64},
                 idm::Vector{Int64},
                 nms::Int64)
     uw = ADerrors.uwcls_gaps(data,
-                             get_id_from_name(str, wsg),
+                             get_id_from_name(str, wsg), wsg, 
                              iv,
                              idm,
                              nms)
