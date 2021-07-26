@@ -933,7 +933,7 @@ function uwreal(data::Vector{Float64},
                              idm,
                              nms)
     v = Vector{String}(undef, length(iv))
-    idc = Vector{Int64}(undef, length(data))
+    idc = Vector{Int64}(undef, nms)
     iof = 0
     for i in 1:length(v)
         v[i] = str*"_r"*string(i-1)
@@ -1006,6 +1006,7 @@ function uwreal(data::Vector{Float64},
                              idm,
                              nms)
 
+    idc = Vector{Int64}(undef, nms)
     iof = 0
     for i in 1:length(iv)
         for k in 1:iv[i]
