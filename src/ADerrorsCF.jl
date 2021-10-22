@@ -260,12 +260,12 @@ function wopt_ulli(nd::Int64, stau::Float64, gmm::Vector{Float64})
         for i in 2:length(gmm)
             tiw = tiw + gmm[i]/gmm[1]
             if (tiw <= 0.5)
-                return maximum(MINW,i)
+                return max(MINW,i)
             else
                 tau = stau/log((2.0*tiw+1.0)/(2.0*tiw-1.0))
                 gw = exp(-(i-1.0)/tau) - tau/sqrt((i-1.0)*nd)
                 if (gw < 0.0)
-                    return maximum(MINW,i)
+                    return max(MINW,i)
                 end
             end
         end
