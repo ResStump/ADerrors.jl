@@ -17,7 +17,8 @@ const iprm = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41,
               103,107,109,113,127,131,137,139,149,151,157,163,
               167,173,179,181,191,193,197,199,211,223,227,229]
 const DEFAULT_STAU = 4.0
-const DO_BIN = false
+const DO_BIN       = false
+const MINW         = 6
 
 is_int32(str::String) =  Base.tryparse(Int32, str) !== nothing
 
@@ -259,12 +260,12 @@ function wopt_ulli(nd::Int64, stau::Float64, gmm::Vector{Float64})
         for i in 2:length(gmm)
             tiw = tiw + gmm[i]/gmm[1]
             if (tiw <= 0.5)
-                return i
+                return maximum(MINW,i)
             else
                 tau = stau/log((2.0*tiw+1.0)/(2.0*tiw-1.0))
                 gw = exp(-(i-1.0)/tau) - tau/sqrt((i-1.0)*nd)
                 if (gw < 0.0)
-                    return i
+                    return maximum(MINW,i)
                 end
             end
         end
