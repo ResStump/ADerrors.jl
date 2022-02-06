@@ -383,7 +383,12 @@ function read_bdio(fb, ws::wspace, mapids::Dict{Int64, Int64})
     else
         for i in 1:nid
             v = Vector{String}(undef, nrep[i])
-            idc = Vector{Int32}(undef, nds[i])
+            if nds[i] == 1
+                idc = Vector{Int32}(undef, 2)
+            else
+                idc = Vector{Int32}(undef, nds[i])
+            end
+            
             BDIO.BDIO_read(fb, ifoo)
             for j in 1:nrep[i]
                 v[j] = BDIO.BDIO_read_str(fb)
