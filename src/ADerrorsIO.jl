@@ -383,18 +383,18 @@ function read_bdio(fb, ws::wspace, mapids::Dict{Int64, Int64})
     else
         for i in 1:nid
             v = Vector{String}(undef, nrep[i])
-            if nds[i] == 1
-                idc = Vector{Int32}(undef, 2)
-            else
-                idc = Vector{Int32}(undef, nds[i])
-            end
-            
+            idc = Vector{Int32}(undef, nds[i])
             BDIO.BDIO_read(fb, ifoo)
             for j in 1:nrep[i]
                 v[j] = BDIO.BDIO_read_str(fb)
             end
             BDIO.BDIO_read(fb, idc)
-            add_repnames(convert(Int64, ids_obs[i]), ws, v, convert(Vector{Int64}, idc))
+            if (length(idc) == 1)
+                add_repnames(convert(Int64, ids_obs[i]), ws, v, [1,2])
+            else
+                add_repnames(convert(Int64, ids_obs[i]), ws, v, convert(Vector{Int64}, idc))
+            end
+
         end
     end
 
@@ -456,7 +456,12 @@ function write_bdio(p::uwreal, fb, iu::Int, ws::wspace; name="NO NAME")
         for j in 1:length(v)
             BDIO.BDIO_write!(fb, v[j]*"\0")
         end
-        BDIO.BDIO_write!(fb, convert(Vector{Int32}, get_repidc_from_id(p.ids[i], ws)))
+        idc = convert(Vector{Int32}, get_repidc_from_id(p.ids[i], ws))
+        if length(idc) == 2
+            BDIO.BDIO_write!(fb, [convert(Int32, 1)])
+        else
+            BDIO.BDIO_write!(fb, convert(Vector{Int32}, get_repidc_from_id(p.ids[i], ws)))
+        end
     end
     
     BDIO.BDIO_write_hash!(fb)
