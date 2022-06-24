@@ -156,7 +156,7 @@ function chiexp(chisq::Function,
                 xp::Vector{Float64}, 
                 data::Vector{uwreal},
                 wpm::Dict{Int64,Vector{Float64}};
-                W::Vector{Float64} = Vector{Float64}())
+                W::Union{Vector{Float64},Array{Float64,2}} = Vector{Float64}())
 
     n = length(xp)   # Number of fit parameters
     m = length(data) # Number of data
