@@ -203,13 +203,13 @@ end
 chiexp(chisq::Function,
        xp::Vector{Float64}, 
        data::Vector{uwreal};
-       W::Vector{Float64} = Vector{Float64}()) = 
+       W::Union{Vector{Float64},Array{Float64,2}} = Vector{Float64}()) = 
            chiexp(chisq, xp, data, Dict{Int64,Vector{Float64}}(), W=W)
 chiexp(chisq::Function,
        xp::Vector{Float64}, 
        data::Vector{uwreal},
        wpm::Dict{String,Vector{Float64}};
-       W::Vector{Float64} = Vector{Float64}()) = 
+       W::Union{Vector{Float64},Array{Float64,2}} = Vector{Float64}()) = 
            chiexp(chisq, xp, data, dict_name_to_id(wpm), W=W)
 
 
