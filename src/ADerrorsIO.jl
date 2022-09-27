@@ -45,6 +45,9 @@ function err(a::uwreal)
     return a.err
 end
 
+err(a::uwreal, mcid::Int64) = sqrt(a.cfd[mcid].var)
+err(a::uwreal, str::String) = err(a, get_id_from_name(str))
+
 """
     value(a::uwreal)
 
