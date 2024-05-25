@@ -96,7 +96,7 @@ function cobs(avgs::Vector{Float64}, cov::Array{Float64, 2}, ids::Vector{Int64})
                 SS[i] = 0.0
             end
         end
-        A    = usvt.U * Diagonal(sqrt.(usvt.S))
+        A    = usvt.U * LinearAlgebra.Diagonal(sqrt.(usvt.S))
 
         for j in 1:n
             p[j] = uwreal([avgs[j], A[j, 1]], ids[1])
@@ -109,16 +109,54 @@ function cobs(avgs::Vector{Float64}, cov::Array{Float64, 2}, ids::Vector{Int64})
     return p
 end
 
+function cobs(avgs::Vector{Float64}, cov::Array{Float64, 2}, sids::Vector{String})
+
+
+    n = length(avgs)
+    p = Vector{uwreal}(undef, n)
+    try
+        ch = LinearAlgebra.cholesky(cov)
+        
+        for j in 1:n
+            p[j] = uwreal([avgs[j], ch.L[j, 1]], sids[1])
+            for i in 2:n
+                p[j] = p[j] + uwreal([0.0, ch.L[j,i]], sids[i])
+            end
+        end
+
+        return p
+    catch
+        usvt = LinearAlgebra.svd(cov)
+        SS = similar(usvt.S)
+        for i in eachindex(SS)
+            if (usvt.S[i] > 1.0e-6)
+                SS[i] = usvt.S[i]
+            else
+                SS[i] = 0.0
+            end
+        end
+        A    = usvt.U * LinearAlgebra.Diagonal(sqrt.(usvt.S))
+
+        for j in 1:n
+            p[j] = uwreal([avgs[j], A[j, 1]], sids[1])
+            for i in 2:n
+                p[j] = p[j] + uwreal([0.0, A[j,i]], sids[i])
+            end
+        end
+    end
+    
+    return p
+end
+
 function cobs(avgs::Vector{Float64}, cov::Array{Float64, 2}, str::String)
 
     n = length(avgs)
-    ids = Vector{Int64}(undef, n)
+    sids = Vector{String}(undef, n)
     for i in 1:n
-        tstr = Printf.@sprintf "%s %8.8d" str i
-        ids[i] = get_id_from_name(tstr)
+        sids[i] = Printf.@sprintf "%s %8.8d" str i
     end
 
-    return cobs(avgs, cov, ids)
+    return cobs(avgs, cov, sids)
 end
 
 
