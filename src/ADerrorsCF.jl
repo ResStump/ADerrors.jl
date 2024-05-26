@@ -22,10 +22,10 @@ const MINW         = 6
 
 is_int32(str::String) =  Base.tryparse(Int32, str) !== nothing
 
-function get_nbin_vec(nd::Array{Int64, 1})::Int64
-    
+function get_nbin_vec(nd::Array{Int64, 1}, dobin=DO_BIN)::Int64
+
     nbin::Int64 = 1
-    if (!DO_BIN)
+    if (!dobin)
         return nbin
     end
     if (any(nd .== 1))
@@ -159,7 +159,7 @@ function add_DB(delta::Vector{Float64}, id::Int64, iv::Vector{Int64}, ws::wspace
             ie = is + iv[i] - 1
             nbdt = div(iv[i], nbin)
             datapad = [bin_data(delta[is:ie], nbin);
-                       zeros(Float64, nextpow(2,2*nbdt+1)-nbdt) ]
+                       zeros(Float64, 600*(div(2*nbdt+1, 600)+1)-nbdt) ]
             fseries[i] = FFTW.fft(datapad)
             is = ie + 1
         end
@@ -281,88 +281,149 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
         a.cfd = Vector{cfdata}(undef, nid)
         for j in 1:nid
             a.cfd[j] = cfdata()
-            idx = ws.map_ids[a.ids[j]]
-            nd  = ws.fluc[idx].nd
-            if (nd != 1)
-                nd_eff = div(nd, ws.fluc[idx].ibn)
-                (nt,ip) = findmax(ws.fluc[idx].ivrep)
-                nt = div(nt, 2*ws.fluc[idx].ibn)
-                nrep   = length(ws.fluc[idx].ivrep)
-                ftemp  = Dict{Int64,Vector{Complex{Float64}}}()
-                @inbounds for i in 1:nrep
-                    ns = length(ws.fluc[idx].fourier[i])
-                    ftemp[i] = zeros(Complex{Float64}, ns)
-                end
+        end
+    end
+    
+    for j in 1:nid
+        wp = get(wpm, a.ids[j], [-1.0,-1.0,-1.0,-1.0,1.0])
+        if length(wp) == 4
+            nbin = 1
+        else
+            nbin = round(Int64, wp[5])
+            if nbin < 1
+                nbin = 1
             end
-            
-            @inbounds for i in 1:length(a.prop)
-                if (a.prop[i] && (ws.map_nob[i] == a.ids[j]))
-                    if (nd == 1)
-                        a.cfd[j].var = a.cfd[j].var + a.der[i]*ws.fluc[i].delta[1]
-                    else
-                        @inbounds for k in 1:nrep
-                            ftemp[k] = ftemp[k] + a.der[i]*ws.fluc[i].fourier[k]
-                        end
+        end
+        if (a.cfd[j].iw != 0) && (nbin == a.cfd[j].nbin)
+            continue
+        end
+
+        a.cfd[j].nbin = nbin
+        idx = ws.map_ids[a.ids[j]]
+        nd  = ws.fluc[idx].nd
+        if (nd != 1)
+            nd_eff = div(nd, nbin)
+            (nt,ip) = findmax(ws.fluc[idx].ivrep)
+            nt = div(nt, 2*a.cfd[j].nbin)
+            nrep   = length(ws.fluc[idx].ivrep)
+            ftemp  = Dict{Int64,Vector{Complex{Float64}}}()
+            @inbounds for i in 1:nrep
+                ns = length(ws.fluc[idx].fourier[i])
+                ftemp[i] = zeros(Complex{Float64}, ns)
+            end
+        end
+        
+        @inbounds for i in 1:length(a.prop)
+            if (a.prop[i] && (ws.map_nob[i] == a.ids[j]))
+                if (nd == 1)
+                    a.cfd[j].var = a.cfd[j].var + a.der[i]*ws.fluc[i].delta[1]
+                else
+                    @inbounds for k in 1:nrep # ensemble growth here
+                        ftemp[k] = ftemp[k] + a.der[i]*ws.fluc[i].fourier[k]
                     end
                 end
             end
-
-            if (nd == 1)
-                a.cfd[j].var = a.cfd[j].var^2
-            else
-                a.cfd[j].gamm = zeros(nt)
-                @inbounds for k in 1:nrep
+        end
+        
+        if (nd == 1)
+            a.cfd[j].var = a.cfd[j].var^2
+            a.cfd[j].iw  = 1
+        else
+            a.cfd[j].gamm = zeros(nt)
+            @inbounds for k in 1:nrep # binning here
+                if nbin == 1
                     ftemp[k] .= ftemp[k].*conj(ftemp[k])
                     FFTW.ifft!(ftemp[k])
-
+                    
                     @inbounds for ig in 1:min(nt,length(ftemp[k]))
                         a.cfd[j].gamm[ig] = a.cfd[j].gamm[ig] + real(ftemp[k][ig])
                     end
-                end
-                @inbounds for ig in 1:nt
-                    nrcnt = 0
-                    for k in 1:nrep
-                        if (div(ws.fluc[idx].ivrep[k], 2*ws.fluc[idx].ibn) > ig-1 )
-                            nrcnt = nrcnt + 1
-                        end
-                    end
-                    a.cfd[j].gamm[ig] = a.cfd[j].gamm[ig] / (nd_eff - nrcnt*(ig-1))
-                end
-
-                iw = wopt_ulli(nd_eff, DEFAULT_STAU, a.cfd[j].gamm)
-                a.cfd[j].iw = iw
-                
-                gwin  = view(a.cfd[j].gamm, 2:iw)
-                dbias = a.cfd[j].gamm[1] + 2.0*sum(gwin)
-                if (dbias > 0.0)
-                    a.cfd[j].gamm .= a.cfd[j].gamm .+ dbias/nd_eff
-                end
-                    
-                a.cfd[j].drho = zeros(nt)
-                if (a.cfd[j].gamm[1] != 0.0)
-                    @inbounds for i in 1:nt
-                        is = max(1, i-iw-2) + 1
-                        ie = is + iw-1
-                        @inbounds for k in is:ie
-                            if (k < nt+1)
-                                cont = -2.0*a.cfd[j].gamm[k]*a.cfd[j].gamm[i]/a.cfd[j].gamm[1]^2
-                            else
-                                cont = 0.0
-                            end
-                            
-                            if ((i+k-2) < nt)
-                                cont = cont + a.cfd[j].gamm[i+k-1]/a.cfd[j].gamm[1]
-                            end
-                            if (abs(i-k) < nt)
-                                cont = cont + a.cfd[j].gamm[abs(i-k)+1]/a.cfd[j].gamm[1]
-                            end
-                            a.cfd[j].drho[i] = a.cfd[j].drho[i] + cont^2
-                        end
-                        a.cfd[j].drho[i] = sqrt(a.cfd[j].drho[i]/nd_eff)
-                    end
                 else
-                    a.cfd[j].var = a.cfd[j].var^2
+                    println(ws.fluc[idx].ivrep[k])
+                    ns = length(ftemp[k])
+                    if ns % nbin != 0
+                        if nd % nbin != 0
+                            error("Bin size ($nbin) not allowed for replica length (",
+                                  ws.fluc[idx].ivrep[k], ")")
+                        end
+                        ftt = FFTW.ifft(ftemp[k])
+                        ns = nbin*(div(2*nd+1, nbin)+1)
+                        resize!(ftt, ns)
+                        @inbounds for kk in length(ftemp[k])+1:ns
+                            ftt[kk] = zero(eltype(ftt))
+                        end
+                        FFTW.fft!(ftt)
+                        nse = div(ns,nbin)
+                        
+                        ft2 = zeros(eltype(ftt), nse)
+                        @inbounds for kk in 2:nse
+	                    @inbounds for r in 1:nbin
+	                        zr = exp(im  * 2*pi*(kk + (r-1)*nse - 1)/ns)
+	                        ft2[kk] += (ftt[kk+(r-1)*nse]/nbin^2) * (1-zr^nbin)/(1-zr)
+	                    end
+                        end
+                    else
+                        nse = div(ns,nbin)
+                        
+                        ft2 = zeros(eltype(ftemp[k]), nse)
+                        @inbounds for kk in 2:nse
+	                    @inbounds for r in 1:nbin
+	                        zr = exp(im  * 2*pi*(kk + (r-1)*nse - 1)/ns)
+	                        ft2[kk] += (ftemp[k][kk+(r-1)*nse]/nbin^2) * (1-zr^nbin)/(1-zr)
+	                    end
+                        end
+                    end
+
+                    ft2 .= ft2 .* conj.(ft2)
+                    FFTW.ifft!(ft2)
+                    @inbounds for ig in 1:min(nt,length(ft2))
+                        a.cfd[j].gamm[ig] = a.cfd[j].gamm[ig] + real(ft2[ig])
+                    end
                 end
+            end
+            @inbounds for ig in 1:nt
+                nrcnt = 0
+                for k in 1:nrep
+                    if (div(ws.fluc[idx].ivrep[k], 2*ws.fluc[idx].ibn) > ig-1 )
+                        nrcnt = nrcnt + 1
+                    end
+                end
+                a.cfd[j].gamm[ig] = a.cfd[j].gamm[ig] / (nd_eff - nrcnt*(ig-1))
+            end
+            
+            iw = wopt_ulli(nd_eff, DEFAULT_STAU, a.cfd[j].gamm)
+            a.cfd[j].iw = iw
+            
+            gwin  = view(a.cfd[j].gamm, 2:iw)
+#            dbias = a.cfd[j].gamm[1] + 2.0*sum(gwin)
+#            if (dbias > 0.0)
+#                a.cfd[j].gamm .= a.cfd[j].gamm .+ dbias/nd_eff
+#            end
+            
+            a.cfd[j].drho = zeros(nt)
+            if (a.cfd[j].gamm[1] != 0.0)
+                @inbounds for i in 1:nt
+                    is = max(1, i-iw-2) + 1
+                    ie = is + iw-1
+                    @inbounds for k in is:ie
+                        if (k < nt+1)
+                            cont = -2.0*a.cfd[j].gamm[k]*a.cfd[j].gamm[i]/a.cfd[j].gamm[1]^2
+                        else
+                            cont = 0.0
+                        end
+                        
+                        if ((i+k-2) < nt)
+                            cont = cont + a.cfd[j].gamm[i+k-1]/a.cfd[j].gamm[1]
+                        end
+                        if (abs(i-k) < nt)
+                            cont = cont + a.cfd[j].gamm[abs(i-k)+1]/a.cfd[j].gamm[1]
+                        end
+                        a.cfd[j].drho[i] = a.cfd[j].drho[i] + cont^2
+                    end
+                    a.cfd[j].drho[i] = sqrt(a.cfd[j].drho[i]/nd_eff)
+                end
+            else
+                a.cfd[j].var = a.cfd[j].var^2
             end
         end
     end
@@ -378,10 +439,9 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
             vti = 0.0
             iw  = 0
         else
-            ibn     = ws.fluc[idx].ibn
-            nd_eff  = div(ws.fluc[idx].nd, ibn)
+            nd_eff = div(ws.fluc[idx].nd, a.cfd[j].nbin)
             (nt,ip) = findmax(ws.fluc[idx].ivrep)
-            nt = div(nt, 2*ibn)
+            nt = div(nt, 2*a.cfd[j].nbin)
             if (a.cfd[j].gamm[1] == 0.0)
                 a.cfd[j].taui  = 0.0
                 a.cfd[j].dtaui = 0.0
@@ -390,9 +450,9 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
             else
                 wp = zeros(4)
                 if haskey(wpm, a.ids[j]) 
-                    wp = get(wpm, a.ids[j], [-1.0,-1.0,-1.0,-1.0])
+                    wp = get(wpm, a.ids[j], [-1.0,-1.0,-1.0,-1.0,1.0])
                     if (wp[1] > 0.0)
-                        a.cfd[j].iw = round(wp[1])
+                        a.cfd[j].iw = round(Int64, wp[1])
                     elseif (wp[2] > 0.0)
                         a.cfd[j].iw = wopt_ulli(nd_eff, wp[2], a.cfd[j].gamm)
                     end
@@ -409,7 +469,7 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                     end
                     
                     if (wp[4] > 0.0)
-                        texp = wp[4]/ibn
+                        texp = wp[4]/a.cfd[j].nbin
                     else
                         texp = 0.0
                     end
@@ -444,6 +504,8 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
         a.err  = sqrt(a.err)
         a.derr = sqrt(a.derr)
     else
+        println(a.cfd[1].gamm[1:a.cfd[1].iw+1])
+        println(id_neg_taui)
         println(stderr, "ID's with negative tau_int: ")
         for i in 1:length(id_neg_taui)
             println("     ",  get_name_from_id(id_neg_taui[i], ws))
@@ -1044,6 +1106,78 @@ Error in data coming from a Monte Carlo ensemble is determined by summing the au
 
 By default, the summation window is determined as [proposed by U. Wolff](https://inspirehep.net/literature/621085) with a parameter ``S_{\tau} = 4``, but other methods are avilable via the optional argument `wpm`. 
 
+For each ensemble, one a pass the following parameters:
+- `window`: The autocorrelation function is summed up to `t = round(vp[1])`.
+- `stau`: The sumation window is determined [using U. Wolff poposal](https://inspirehep.net/literature/621085) with ``S_{\tau} = {\rm vp[2]}``.
+- `signal`: The autocorrelation function ``\Gamma(t)`` is summed up a point where its error ``\delta\Gamma(t)`` is a factor `vp[3]` times larger than the signal. 
+
+These three parameters fix the summation window. The following options also affect the error analysis
+- `texp`: Add a tail to the autocorrelation function with this value of ``\tau_{\rm exp}``. See [the reference](https://inspirehep.net/literature/871175) for an explanation of the procedure.
+- `bin`: Bin the data before computing the autocorrelation function, usg this value as bin size.
+```@example
+using ADerrors # hide
+# Generate some correlated data
+eta  = randn(1000)
+x    = Vector{Float64}(undef, 1000)
+x[1] = 0.0
+for i in 2:1000
+    x[i] = x[i-1] + eta[i]
+    if abs(x[i]) > 1.0
+        x[i] = x[i-1]
+    end
+end
+
+# Load the data in a uwreal
+a = uwreal(x.^2, "Random walk in [-1,1]")
+wpm = Dict{String,Dict{String, Real}}()
+
+# Use default analysis (stau = 4.0)
+uwerr(a)
+println("default:                   ", a, " (tauint = ", taui(a, "Random walk in [-1,1]"), ")")
+println("  - window: ", window(a, "Random walk in [-1,1]"))
+
+# This will still do default analysis because 
+# a does not depend on emsemble foo
+wpm["Ensemble foo"] = Dict("window" => 34)
+uwerr(a, wpm)
+println("default:                   ", a, " (tauint = ", taui(a, "Random walk in [-1,1]"), ")")
+println("  - window: ", window(a, "Random walk in [-1,1]"))
+
+# Use default analysis (stau = 4.0), bin data with bin size 5
+wpm["Random walk in [-1,1]"] = Dict("bin" => 5)
+uwerr(a, wpm)
+println("default (bin size 5):     ", a, " (tauint = ", taui(a, "Random walk in [-1,1]"), ")")
+println("  - window: ", window(a, "Random walk in [-1,1]"))
+
+# Fix the summation window to 1 (i.e. uncorrelated analysis)
+wpm["Random walk in [-1,1]"] = Dict("window" => 1)
+uwerr(a, wpm)
+println("uncorrelated:              ",  a, " (tauint = ", taui(a, "Random walk in [-1,1]"), ")")
+println("  - window: ", window(a, "Random walk in [-1,1]"))
+
+# Use stau = 1.5
+wpm["Random walk in [-1,1]"] = Dict("stau" => 1.5)
+uwerr(a, wpm)
+println("stau = 1.5:                ", a, " (tauint = ", taui(a, "Random walk in [-1,1]"), ")")
+println("  - window: ", window(a, "Random walk in [-1,1]"))
+
+# Use fixed window 2 and add tail with texp = 100.0
+wpm["Random walk in [-1,1]"] = Dict("window" => 2, "texp" => 100.0)
+uwerr(a, wpm)
+println("Fixed window 2, texp=100: ", a, " (tauint = ", taui(a, "Random walk in [-1,1]"), ")")
+println("  - window: ", window(a, "Random walk in [-1,1]"))
+
+# Sum up to the point that the signal in Gamma is 
+# 1.5 times the error and add a tail with texp = 10.0
+wpm["Random walk in [-1,1]"] = Dict("signal" => 1.5, "texp" => 10.0)
+uwerr(a, wpm)
+println("signal/noise=1.5, texp=10: ", a, " (tauint = ", taui(a, "Random walk in [-1,1]"), ")")
+println("  - window: ", window(a, "Random walk in [-1,1]"))
+```
+
+
+#### Old (legacy) way to set the window parameters
+
 For each ensemble `ID` one can pass a vector of `Float64` of length 4. The first three components of the vector specify the criteria to determine the summation window:
 - `vp[1]`: The autocorrelation function is summed up to `t = round(vp[1])`.
 - `vp[2]`: The sumation window is determined [using U. Wolff poposal](https://inspirehep.net/literature/621085) with ``S_{\tau} = {\rm vp[2]}``.
@@ -1106,6 +1240,21 @@ println("signal/noise=1.5, texp=10: ", a, " (tauint = ", taui(a, "Random walk in
 uwerr(a::uwreal, wpm::Dict{Int64,Vector{Float64}}) = ADerrors.uwerror(a, wsg, wpm)
 uwerr(a::uwreal) = ADerrors.uwerror(a::uwreal, wsg, empt)
 uwerr(a::uwreal, wpm::Dict{String,Vector{Float64}}) = uwerr(a, dict_name_to_id(wpm))
+function uwerr(a::uwreal, wpm::Dict{String,Dict{String, Real}})
+    
+    wpi = Dict{Int64, Vector{Float64}}()
+    for (k, v) in wpm
+        r1 = convert(Float64, get(v, "window", -1))
+        r2 = convert(Float64, get(v, "stau", -1))
+        r3 = convert(Float64, get(v, "signal", -1))
+        r4 = convert(Float64, get(v, "texp", -1))
+        r5 = convert(Float64, get(v, "bin", 1))
+        wpi[get_id_from_name(k)] = [r1,r2,r3,r4,r5]
+    end
+    
+    return uwerr(a, wpi)
+end
+
 
 """
     cov(a::Vector{uwreal}[, wpm])

@@ -15,6 +15,7 @@ mutable struct cfdata
     dtaui::Float64
 
     iw::Int64
+    nbin::Int64
     
     gamm::Vector{Float64}
     drho::Vector{Float64}
@@ -25,6 +26,7 @@ mutable struct cfdata
         x.taui  = 0.0
         x.dtaui = 0.0
         x.iw = 0
+        x.nbin = 0
         return x
     end
 end
