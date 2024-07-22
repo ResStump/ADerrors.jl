@@ -339,7 +339,6 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                         a.cfd[j].gamm[ig] = a.cfd[j].gamm[ig] + real(ftemp[k][ig])
                     end
                 else
-                    println(ws.fluc[idx].ivrep[k])
                     ns = length(ftemp[k])
                     if ns % nbin != 0
                         if nd % nbin != 0
