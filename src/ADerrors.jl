@@ -32,7 +32,7 @@ include("ADerrorsTools.jl")
 # Root, fit, integral error propagation
 include("ADerrorsUtils.jl")
 
-export err, value, derror, taui, dtaui, window, rho, drho, details, ensembles, mchist
+export err, value, derror, taui, dtaui, window, rho, drho, details, ensembles, mchist, replicas
 export uwreal, uwerr, change_id
 export cov, trcov, trcorr, neid, derivative
 export read_uwreal, write_uwreal

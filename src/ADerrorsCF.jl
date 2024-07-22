@@ -779,6 +779,7 @@ window(a::uwreal, str::String) = window(a, get_id_from_name(str))
 rho(a::uwreal, str::String) = rho(a, get_id_from_name(str))
 drho(a::uwreal, str::String) = drho(a, get_id_from_name(str))
 mchist(a::uwreal, str::String) = mchist(a, get_id_from_name(str))
+replicas(a::uwreal, str::String) = replicas(a, get_id_from_name(str))
 err(a::uwreal, str::String) = err(a, get_id_from_name(str))
 
 empt = Dict{Int64,Vector{Float64}}()

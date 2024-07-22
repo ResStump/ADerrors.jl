@@ -285,6 +285,22 @@ function mchist(a::uwreal, mcid::Int64, ws::wspace)
     end
 end
 
+"""
+        replicas(a::uwreal, mcid::String)
+
+Returns the replica vector for ensemble `mcid` contributing to observable `a`
+"""
+function replicas(a::uwreal, mcid::Int64, ws::wspace)
+    idx = find_mcid(a, mcid)
+    if (idx == nothing)
+        error("No error available... maybe run uwerr")
+    else
+        return ws.fluc[ws.map_ids[a.ids[idx]]].ivrep
+    end
+end
+
+replicas(a::uwreal, mcid::Int64) = replicas(a, mcid, wsg)
+
 mchist(a::uwreal, mcid::Int64) = mchist(a, mcid, wsg) 
 
 function read_bdio(fb, ws::wspace, mapids::Dict{Int64, Int64})

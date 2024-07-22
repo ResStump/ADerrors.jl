@@ -42,6 +42,7 @@ dtaui
 rho
 drho
 mchist
+replicas
 window
 details
 neid
