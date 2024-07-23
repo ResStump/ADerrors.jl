@@ -270,7 +270,8 @@ function wopt_ulli(nd::Int64, stau::Float64, gmm::Vector{Float64})
             end
         end
     end
-    
+
+    return 1
 end
 
 function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
