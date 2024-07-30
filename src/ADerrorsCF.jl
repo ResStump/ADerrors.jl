@@ -794,6 +794,22 @@ function dict_name_to_id(wpm::Dict{String, Vector{Float64}})
     return wp
 end
 
+function dict_name_to_id(wpm::Dict{String,Dict{String, Real}})
+    wp = Dict{Int64, Vector{Float64}}()
+    for (k, v) in wpm
+        r1 = convert(Float64, get(v, "window", -1))
+        r2 = convert(Float64, get(v, "stau", -1))
+        r3 = convert(Float64, get(v, "signal", -1))
+        r4 = convert(Float64, get(v, "texp", -1))
+        r5 = convert(Float64, get(v, "bin", 1))
+        wp[get_id_from_name(k)] = [r1,r2,r3,r4,r5]
+    end
+
+    return wp
+end
+    
+
+
 """
     change_id(; from::String, to::String)
 
@@ -1241,20 +1257,7 @@ println("signal/noise=1.5, texp=10: ", a, " (tauint = ", taui(a, "Random walk in
 uwerr(a::uwreal, wpm::Dict{Int64,Vector{Float64}}) = ADerrors.uwerror(a, wsg, wpm)
 uwerr(a::uwreal) = ADerrors.uwerror(a::uwreal, wsg, empt)
 uwerr(a::uwreal, wpm::Dict{String,Vector{Float64}}) = uwerr(a, dict_name_to_id(wpm))
-function uwerr(a::uwreal, wpm::Dict{String,Dict{String, Real}})
-    
-    wpi = Dict{Int64, Vector{Float64}}()
-    for (k, v) in wpm
-        r1 = convert(Float64, get(v, "window", -1))
-        r2 = convert(Float64, get(v, "stau", -1))
-        r3 = convert(Float64, get(v, "signal", -1))
-        r4 = convert(Float64, get(v, "texp", -1))
-        r5 = convert(Float64, get(v, "bin", 1))
-        wpi[get_id_from_name(k)] = [r1,r2,r3,r4,r5]
-    end
-    
-    return uwerr(a, wpi)
-end
+uwerr(a::uwreal, wpm::Dict{String,Dict{String, Real}}) = uwerr(a, dict_name_to_id(wpm))
 
 
 """
@@ -1313,6 +1316,8 @@ trcov(M, a::Vector{uwreal}) = trcov(M, a, wsg, empt)
 trcov(M, a::Vector{uwreal}, wpm::Dict{Int64,Vector{Float64}}) = trcov(M, a, wsg, wpm)
 trcov(M, a::Vector{uwreal}, wpm::Dict{String,Vector{Float64}}) =
     trcov(M, a, wsg, dict_name_to_id(wpm))
+trcov(M, a::Vector{uwreal}, wpm::Dict{String,Dict{String, Real}}) =
+    trcov(M, a, wsg, dict_name_to_id(wpm))
 
 trcorr(M, a::Vector{uwreal},
        W::Vector{Float64}=Vector{Float64}()) = trcorr(M, a, wsg, empt, W)
@@ -1320,10 +1325,14 @@ trcorr(M, a::Vector{uwreal}, W::Vector{Float64},
        wpm::Dict{Int64,Vector{Float64}}) = trcorr(M, a, wsg, wpm, W)
 trcorr(M, a::Vector{uwreal}, W::Vector{Float64},
        wpm::Dict{String,Vector{Float64}}) = trcorr(M, a, wsg, dict_name_to_id(wpm), W)
+trcorr(M, a::Vector{uwreal}, W::Vector{Float64},
+       wpm::Dict{String,Dict{String, Real}}) = trcorr(M, a, wsg, dict_name_to_id(wpm), W)
 trcorr(M, a::Vector{uwreal},
        wpm::Dict{Int64,Vector{Float64}}) = trcorr(M, a, wsg, wpm, Vector{Float64}())
 trcorr(M, a::Vector{uwreal},
        wpm::Dict{String,Vector{Float64}}) = trcorr(M, a, wsg, dict_name_to_id(wpm), Vector{Float64}())
+trcorr(M, a::Vector{uwreal},
+       wpm::Dict{String,Dict{String, Real}}) = trcorr(M, a, wsg, dict_name_to_id(wpm), Vector{Float64}())
 
 
 """

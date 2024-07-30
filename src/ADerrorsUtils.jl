@@ -80,7 +80,7 @@ function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Vector{Float64
 
     return trcov(Px, data, wpm)
 end
-    
+
 function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Array{Float64, 2}, wpm::Dict{Int64,Vector{Float64}})
 
     m = length(data)
@@ -211,8 +211,12 @@ chiexp(chisq::Function,
        wpm::Dict{String,Vector{Float64}};
        W::Union{Vector{Float64},Array{Float64,2}} = Vector{Float64}()) = 
            chiexp(chisq, xp, data, dict_name_to_id(wpm), W=W)
-
-
+chiexp(chisq::Function,
+       xp::Vector{Float64}, 
+       data::Vector{uwreal},
+       wpm::Dict{String,Dict{String, Real}};
+       W::Union{Vector{Float64},Array{Float64,2}} = Vector{Float64}()) = 
+           chiexp(chisq, xp, data, dict_name_to_id(wpm), W=W)
 
 @doc raw"""
 
@@ -395,6 +399,13 @@ fit_error(chisq::Function,
           xp::Vector{Float64}, 
           data::Vector{uwreal},
           wpm::Dict{String,Vector{Float64}};
+          W::Union{Vector{Float64}, Array{Float64,2}} = Vector{Float64}(),
+          chi_exp::Bool = true) = 
+              fit_error(chisq, xp, data, dict_name_to_id(wpm), W, chi_exp)
+fit_error(chisq::Function,
+          xp::Vector{Float64}, 
+          data::Vector{uwreal},
+          wpm::Dict{String,Dict{String, Real}};
           W::Union{Vector{Float64}, Array{Float64,2}} = Vector{Float64}(),
           chi_exp::Bool = true) = 
               fit_error(chisq, xp, data, dict_name_to_id(wpm), W, chi_exp)
