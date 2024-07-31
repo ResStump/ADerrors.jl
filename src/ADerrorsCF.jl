@@ -682,7 +682,7 @@ function trcov(M, a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64}
         end
         ADerrors.uwerror(p[i], ws, wpm)
     end
-
+    
     ids = unique_ids_multi(a, ws)
     iw = zeros(Int64, length(ids))
     for k in 1:n
@@ -697,9 +697,10 @@ function trcov(M, a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64}
     
     wopt = Dict{Int64,Vector{Float64}}()
     for i in 1:length(ids)
-        wopt[ids[i]] = [Base.convert(Float64, iw[i]), -1.0, -1.0, -1.0]
+        ib = get(wpm, ids[i], [0.0,0.0,0.0,0.0,1.0])[5]
+        wopt[ids[i]] = [Base.convert(Float64, iw[i]), -1.0, -1.0, -1.0, ib]
     end
-
+    
     tr = 0.0
     for k in 1:n
         ADerrors.uwerror(p[k], ws, wopt)
@@ -747,7 +748,8 @@ function trcorr(M, a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64
     
     wopt = Dict{Int64,Vector{Float64}}()
     for i in 1:length(ids)
-        wopt[ids[i]] = [Base.convert(Float64, iw[i]), -1.0, -1.0, -1.0]
+        ib = get(wpm, ids[i], [0.0,0.0,0.0,0.0,1.0])[5]
+        wopt[ids[i]] = [Base.convert(Float64, iw[i]), -1.0, -1.0, -1.0, ib]
     end
 
     tr = 0.0
