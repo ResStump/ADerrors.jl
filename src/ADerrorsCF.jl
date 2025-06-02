@@ -607,6 +607,151 @@ function cov(a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
     return cov
 end
 
+function cov_sym(a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
+
+    for i in 1:length(a)
+        ADerrors.uwerror(a[i], ws, wpm)
+    end
+    ids = unique_ids_multi(a, ws)
+    nid = length(ids)
+    iw  = zeros(Int64, nid)
+
+    for k in 1:length(a)
+        for j in 1:length(a[k].ids)
+            for i in 1:nid
+                if (a[k].ids[j] == ids[i])
+                    iw[i] = max(iw[i], a[k].cfd[j].iw)
+                end
+            end
+        end
+    end
+
+    wopt = Dict{Int64,Vector{Float64}}()
+    for i in 1:nid
+        wopt[ids[i]] = [Base.convert(Float64, iw[i]), -1.0, -1.0, -1.0]
+    end
+
+    cov = zeros(Float64, length(a), length(a))
+    for k in 1:length(a)
+        ADerrors.uwerror(a[k], ws, wopt)
+        cov[k,k] = a[k].err^2
+    end
+
+    for j in 1:nid
+        idx  = ws.map_ids[ids[j]]
+        nd   = ws.fluc[idx].nd
+        if (nd != 1)
+            nd_eff = div(nd, ws.fluc[idx].ibn)
+            (nt,ip) = findmax(ws.fluc[idx].ivrep)
+            nt = div(nt, 2*ws.fluc[idx].ibn)
+            nrep = length(ws.fluc[idx].ivrep)
+
+            ftemp1 = Dict{Int64,Vector{Complex{Float64}}}()
+            ftemp2 = Dict{Int64,Vector{Complex{Float64}}}()
+            ftemp3 = Dict{Int64,Vector{Complex{Float64}}}()
+            for i in 1:nrep
+                ns = length(ws.fluc[idx].fourier[i])
+                ftemp1[i] = zeros(Complex{Float64}, ns)
+                ftemp2[i] = zeros(Complex{Float64}, ns)
+                ftemp3[i] = zeros(Complex{Float64}, ns)
+            end
+
+            gamm12 = zeros(Float64, nt)
+            gamm21 = zeros(Float64, nt)
+        end
+        for k1 in 1:length(a)-1
+            v1 = 0.0
+            for i in 1:length(a[k1].prop)
+                if (a[k1].prop[i] && (ws.map_nob[i] == ids[j]))
+                    if (nd == 1)
+                        v1 = v1 + a[k1].der[i]*ws.fluc[i].delta[1]
+                    else
+                        for k in 1:nrep
+                            ftemp1[k] = ftemp1[k] + a[k1].der[i]*ws.fluc[i].fourier[k]
+                        end
+                    end
+                end
+            end
+            for k2 in k1+1:length(a)
+                v2 = 0.0
+                for i in 1:length(a[k2].prop)
+                    if (a[k2].prop[i] && (ws.map_nob[i] == ids[j]))
+                        if (nd == 1)
+                            v2 = v2 + a[k2].der[i]*ws.fluc[i].delta[1]
+                        else
+                            for k in 1:nrep
+                                ftemp2[k] = ftemp2[k] + a[k2].der[i]*ws.fluc[i].fourier[k]
+                            end
+                        end
+                    end
+                end
+
+                if (nd == 1)
+                    cov[k1,k2] = cov[k1,k2] + v1*v2
+                else
+                    for k in 1:nrep
+                        ftemp3[k] .= ftemp1[k].*conj(ftemp2[k])
+                        FFTW.ifft!(ftemp3[k])
+
+                        for ig in 1:min(nt,length(ftemp3[k]))
+                            gamm12[ig] = gamm12[ig] + real(ftemp3[k][ig])
+                        end
+                        ftemp3[k] .= ftemp2[k].*conj(ftemp1[k])
+                        FFTW.ifft!(ftemp3[k])
+
+                        for ig in 1:min(nt, length(ftemp3[k]))
+                            gamm21[ig] = gamm21[ig] + real(ftemp3[k][ig])
+                        end
+                    end
+
+                    for ig in 1:nt
+                        nrcnt = count(map(x -> div(x, 2*ws.fluc[idx].ibn), ws.fluc[idx].ivrep) .> ig-1)
+                        gamm12[ig] = gamm12[ig] / (nd_eff - nrcnt*(ig-1))
+                        gamm21[ig] = gamm21[ig] / (nd_eff - nrcnt*(ig-1))
+                    end
+
+                    # dbias = gamm[1] + 2.0*sum(gamm[2:iw[j]])
+                    # gamm .= gamm .+ dbias/nd_eff
+
+                    cov[k1,k2] = cov[k1, k2] + ( gamm12[1] + sum(gamm12[2:iw[j]]) + sum(gamm21[2:iw[j]]) )/nd_eff
+
+                    for i in 1:nrep
+                        for l in 1:length(ws.fluc[idx].fourier[i])
+                            ftemp2[i][l] = Base.convert(Complex{Float64}, 0.0)
+                            ftemp3[i][l] = Base.convert(Complex{Float64}, 0.0)
+                        end
+                    end
+                    for i in 1:nt
+                        gamm12[i] = 0.0
+                        gamm21[i] = 0.0
+                    end
+                end
+            end
+
+            if (nd > 1)
+                for i in 1:nrep
+                    for l in 1:length(ws.fluc[idx].fourier[i])
+                        ftemp1[i][l] = Base.convert(Complex{Float64}, 0.0)
+                    end
+                end
+            end
+        end
+    end
+
+    for k1 in 1:length(a)-1
+        for k2 in k1+1:length(a)
+            cov[k2,k1] = cov[k1,k2]
+        end
+    end
+
+    return cov
+end
+
+cov_sym(v::Vector{uwreal}, wpm::Dict{Int64,Vector{Float64}}) = cov_sym(v,ADerrors.wsg, wpm)
+cov_sym(v::Vector{uwreal}) = cov_sym(v,ADerrors.wsg,Dict{Int64,Vector{Float64}}())
+
+
+
 function trcov(M, a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
 
     usvt = LinearAlgebra.svd(M)
