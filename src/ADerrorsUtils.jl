@@ -205,7 +205,7 @@ function chiexp(chisq::Function,
 
     cse = 0.0
     if (m-n > 0)
-        if (length(W) == 0)
+        if (length(W) == 0) && isnothing(C)
             Ww = zeros(Float64, m)
             for i in 1:m
                 if (data[i].err == 0.0)
@@ -216,6 +216,9 @@ function chiexp(chisq::Function,
                 end
                 Ww[i] = 1.0 / data[i].err^2
             end
+        elseif (length(W) ==0)
+            Ww = LinearAlgebra.pinv(C);
+            Ww = 0.5*(Ww+Ww')
         else
             Ww = W
         end

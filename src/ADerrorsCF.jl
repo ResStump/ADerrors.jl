@@ -710,9 +710,9 @@ function cov_sym(a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64}}
                         gamm21[ig] = gamm21[ig] / (nd_eff - nrcnt*(ig-1))
                     end
 
-                    # dbias = gamm[1] + 2.0*sum(gamm[2:iw[j]])
-                    # gamm .= gamm .+ dbias/nd_eff
-
+                    dbias = gamm12[1] + sum(gamm12[2:iw[j]]) +sum(gamm21[2:iw[j]])
+                    gamm12 .= gamm12 .+ dbias/nd_eff
+                    gamm21 .= gamm21 .+ dbias/nd_eff
                     cov[k1,k2] = cov[k1, k2] + ( gamm12[1] + sum(gamm12[2:iw[j]]) + sum(gamm21[2:iw[j]]) )/nd_eff
 
                     for i in 1:nrep
