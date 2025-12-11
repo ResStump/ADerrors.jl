@@ -81,9 +81,9 @@ function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Vector{Float64
     return trcov(Px, data, wpm)
 end
 
-function ADerrors.chiexp(hess::AbstractArray{Float64,2}, data::AbstractVector{uwreal}, W::AbstractVector{Float64},C::AbstractArray{Float64,2},wpm::Dict{Int64,Vector{Float64}})
+function chiexp(hess::AbstractArray{Float64,2}, data::AbstractVector{uwreal}, W::AbstractVector{Float64},C::AbstractArray{Float64,2},wpm::Dict{Int64,Vector{Float64}})
 
-     m = length(data)
+    m = length(data)
     n = size(hess, 1) - m
 
     hm = view(hess, 1:n, n+1:n+m)
@@ -103,7 +103,7 @@ function ADerrors.chiexp(hess::AbstractArray{Float64,2}, data::AbstractVector{uw
     return sum(CP[i,i] for i in axes(CP,1))
 end
 
-function chiexp(hess::AbstractArray{Float64, 2}, data::AbstractVector{uwreal}, W::AbstractArray{Float64, 2}, wpm::Dict{Int64,Vector{Float64}})
+function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Array{Float64, 2}, wpm::Dict{Int64,Vector{Float64}})
 
     m = length(data)
     n = size(hess, 1) - m
@@ -121,7 +121,7 @@ function chiexp(hess::AbstractArray{Float64, 2}, data::AbstractVector{uwreal}, W
     return trcov(Px, data, wpm)
 end
 
-function chiexp(hess::Array{Float64,2}, data::Vector{uwreal}, W::Array{Float64,2},C::Array{Float64,2},wpm::Dict{Int64,Vector{Float64}})
+function chiexp(hess::Array{Float64,2}, data::Vector{uwreal}, W::Array{Float64,2}, C::Array{Float64,2},wpm::Dict{Int64,Vector{Float64}})
 
     m = length(data)
     n = size(hess, 1) - m
@@ -227,7 +227,7 @@ function chiexp(chisq::Function,
 
     cse = 0.0
     if (m-n > 0)
-        if (length(W) == 0) && isnothing(C)
+        if (length(W) == 0) 
             Ww = zeros(Float64, m)
             for i in 1:m
                 if (data[i].err == 0.0)
@@ -238,13 +238,9 @@ function chiexp(chisq::Function,
                 end
                 Ww[i] = 1.0 / data[i].err^2
             end
-        elseif (length(W) ==0)
-            Ww = LinearAlgebra.pinv(C);
-            Ww = 0.5*(Ww+Ww')
         else
-            Ww = W
+            Ww=W
         end
-
         cse = isnothing(C) ?  chiexp(hess, data, Ww, wpm) : chiexp(hess,data,Ww,C,wpm)
     end
 
@@ -331,7 +327,8 @@ function fit_error(chisq::Function,
                    data::Vector{uwreal},
                    wpm::Dict{Int64,Vector{Float64}},
                    W::Vector{Float64} = Vector{Float64}(),
-                   chi_exp::Bool = true)
+                   chi_exp::Bool = true,
+                   C=nothing)
 
     n = length(xp)   # Number of fit parameters
     m = length(data) # Number of data
@@ -382,7 +379,7 @@ function fit_error(chisq::Function,
             Ww = W
         end
         
-        cse = chiexp(hess, data, Ww, wpm)
+        cse = isnothing(C) ?  chiexp(hess, data, Ww, wpm) : chiexp(hess,data,Ww,C,wpm)
     end
 
     return param, cse
@@ -393,7 +390,8 @@ function fit_error(chisq::Function,
                    data::Vector{uwreal},
                    wpm::Dict{Int64,Vector{Float64}},
                    W::Array{Float64, 2},
-                   chi_exp::Bool = true)
+                   chi_exp::Bool = true,
+                   C = nothing)
 
     n = length(xp)   # Number of fit parameters
     m = length(data) # Number of data
@@ -429,7 +427,7 @@ function fit_error(chisq::Function,
     
     cse = 0.0
     if (m-n > 0)
-        cse = isnothing(C) ?  chiexp(hess, data, Ww, wpm) : chiexp(hess,data,Ww,C,wpm)
+        cse = isnothing(C) ?  chiexp(hess, data, W, wpm) : chiexp(hess,data,W,C,wpm)
     end
 
     return param, cse
