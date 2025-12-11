@@ -80,8 +80,30 @@ function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Vector{Float64
 
     return trcov(Px, data, wpm)
 end
+
+function ADerrors.chiexp(hess::AbstractArray{Float64,2}, data::AbstractVector{uwreal}, W::AbstractVector{Float64},C::AbstractArray{Float64,2},wpm::Dict{Int64,Vector{Float64}})
+
+     m = length(data)
+    n = size(hess, 1) - m
+
+    hm = view(hess, 1:n, n+1:n+m)
+    sm = Array{Float64, 2}(undef, n, m)
+    for i in 1:n, j in 1:m
+        sm[i,j] = hm[i,j] / sqrt.(W[j])
+    end
+    maux = sm * sm'
+    hi   = LinearAlgebra.pinv(maux)
+    Px   = - hm' * hi * hm
+    for i in 1:m
+        Px[i,i] += W[i]
+    end
     
-function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Array{Float64, 2}, wpm::Dict{Int64,Vector{Float64}})
+    CP = C*Px
+
+    return sum(CP[i,i] for i in axes(CP,1))
+end
+
+function chiexp(hess::AbstractArray{Float64, 2}, data::AbstractVector{uwreal}, W::AbstractArray{Float64, 2}, wpm::Dict{Int64,Vector{Float64}})
 
     m = length(data)
     n = size(hess, 1) - m
@@ -407,7 +429,7 @@ function fit_error(chisq::Function,
     
     cse = 0.0
     if (m-n > 0)
-        cse = chiexp(hess, data, W, wpm)
+        cse = isnothing(C) ?  chiexp(hess, data, Ww, wpm) : chiexp(hess,data,Ww,C,wpm)
     end
 
     return param, cse
@@ -416,19 +438,19 @@ end
 fit_error(chisq::Function,
           xp::Vector{Float64}, 
           data::Vector{uwreal};
-          W::Union{Vector{Float64}, Array{Float64,2}} = Vector{Float64}(),
-          chi_exp::Bool = true) = 
-              fit_error(chisq, xp, data, Dict{Int64,Vector{Float64}}(), W, chi_exp)
+          W::VecOrMat{Float64} = Vector{Float64}(),
+          chi_exp::Bool = true,C=nothing) = 
+              fit_error(chisq, xp, data, Dict{Int64,Vector{Float64}}(), W, chi_exp,C)
 fit_error(chisq::Function,
           xp::Vector{Float64}, 
           data::Vector{uwreal},
           wpm::Dict{String,Vector{Float64}};
-          W::Union{Vector{Float64}, Array{Float64,2}} = Vector{Float64}(),
-          chi_exp::Bool = true) = 
-              fit_error(chisq, xp, data, dict_name_to_id(wpm), W, chi_exp)
+          W::AbstractVecOrMat{Float64} = Vector{Float64}(),
+          chi_exp::Bool = true,C=nothing) = 
+              fit_error(chisq, xp, data, dict_name_to_id(wpm), W, chi_exp,C)
 
 @doc raw"""
-    int_error(fint::Function, a, b, p::Vector{uwreal})
+    int_error(fint::Function, a, b, p::AbstractVector{uwreal})
 
 Computes the integral
 

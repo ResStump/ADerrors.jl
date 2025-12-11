@@ -30,7 +30,16 @@ xp = [sum(value.(dt) ./ dx)/sum(1.0 ./ dx)]
 # Propagate errors to the fit parameters and
 # determine the expected chi^2
 (fitp, csqexp) = fit_error(chisq, xp, dt)
+uwerr.(fitp)
+println(" *** FIT RESULTS ***")
+print("Fit parameter:     ")
+details.(fitp)
+println("chi^2 / chi_exp^2: ", chisq(xp, value.(dt)), " / ", csqexp, "  (dof: ", npt-1, ")")
 
+
+# Propagate errors to the fit parameters and
+# determine the expected chi^2
+(fitp, csqexp) = fit_error(chisq, xp, dt,C=sig)
 uwerr.(fitp)
 println(" *** FIT RESULTS ***")
 print("Fit parameter:     ")
