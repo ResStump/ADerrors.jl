@@ -22,3 +22,5 @@ println("Test [test_trcov.jl]")
 println("Test [test_gaps.jl]")
 @time @test include("test_gaps.jl")
 
+println("test [test_cov_sym.jl]")
+@time @test include("test_cov_sym.jl")

@@ -80,7 +80,29 @@ function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Vector{Float64
 
     return trcov(Px, data, wpm)
 end
+
+function chiexp(hess::AbstractArray{Float64,2}, data::AbstractVector{uwreal}, W::AbstractVector{Float64},C::AbstractArray{Float64,2},wpm::Dict{Int64,Vector{Float64}})
+
+    m = length(data)
+    n = size(hess, 1) - m
+
+    hm = view(hess, 1:n, n+1:n+m)
+    sm = Array{Float64, 2}(undef, n, m)
+    for i in 1:n, j in 1:m
+        sm[i,j] = hm[i,j] / sqrt.(W[j])
+    end
+    maux = sm * sm'
+    hi   = LinearAlgebra.pinv(maux)
+    Px   = - hm' * hi * hm
+    for i in 1:m
+        Px[i,i] += W[i]
+    end
     
+    CP = C*Px
+
+    return sum(CP[i,i] for i in axes(CP,1))
+end
+
 function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Array{Float64, 2}, wpm::Dict{Int64,Vector{Float64}})
 
     m = length(data)
@@ -99,11 +121,34 @@ function chiexp(hess::Array{Float64, 2}, data::Vector{uwreal}, W::Array{Float64,
     return trcov(Px, data, wpm)
 end
 
+function chiexp(hess::Array{Float64,2}, data::Vector{uwreal}, W::Array{Float64,2}, C::Array{Float64,2},wpm::Dict{Int64,Vector{Float64}})
+
+    m = length(data)
+    n = size(hess, 1) - m
+
+    Lm = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(W))
+    Li = LinearAlgebra.inv(Lm.L)
+
+    hm = view(hess, 1:n, n+1:n+m)
+    sm = hm * Li'
+
+    maux = sm * sm'
+    hi   = LinearAlgebra.pinv(maux)
+    Px   = W - hm' * hi * hm
+
+    CP = C*Px
+
+    return sum(CP[i,i] for i in axes(CP,1))
+end
+
+
+
 @doc raw"""
     chiexp(chisq::Function,
-                xp::Vector{Float64}, 
+                xp::Vector{Float64},
                 data::Vector{uwreal};
-                W = Vector{Float64}())
+                W = Vector{Float64}(),
+                C = nothing)
 
 Given a ``\chi^2(p, d)``, function of the fit parameters `p[:]` and the data `d[:]`, compute the expected value of the ``\chi^2(p, d)``.
 
@@ -116,9 +161,10 @@ Given a ``\chi^2(p, d)``, function of the fit parameters `p[:]` and the data `d[
 where the function ``f_i(p)`` is an arbitrary function of the fit parameters. In simple words, the function is assumed to be quadratic in the data.
 - `xp`: A vector of `Float64`. The value of the fit parameters at the minima.
 - `data`: A vector of `uwreal`. The data whose fluctuations enter in the evaluation of the `chisq`.
-- `W`: A matrix. The weights that enter in the evaluation of the `chisq` function. If a vector is passed, the matrix is assumed to be diagonal (i.e. **uncorrelated** fit). If no weights are passed, the routines assumes that `W` is diagonal with entries given by the inverse errors squared of the data (i.w. the `chisq` is weighted with the errors of the data). 
+- `W`: A matrix. The weights that enter in the evaluation of the `chisq` function. If a vector is passed, the matrix is assumed to be diagonal (i.e. **uncorrelated** fit). If no weights are passed, the routines assumes that `W` is diagonal with entries given by the inverse errors squared of the data (i.w. the `chisq` is weighted with the errors of the data).
+- `C`: A matrix. The covariance matrix of the data. if not given (i.e. is `nothing`), ADerrors will infer the covariance matrix form the data.
 
-#### Example 
+#### Example
 ```@example
 using ADerrors, Distributions # hide
 
@@ -137,14 +183,14 @@ end
 dmv = MvNormal([0.1 for n in 1:npt], sig)
 vs  = rand(dmv, 1)
 
-# Create the uwreal data that we want to 
+# Create the uwreal data that we want to
 # fit to a constant
 dt = cobs(vs[:,1], sig, [100+n for n in 1:npt])
 
 # Define the chi^2
 chisq(p, d) = sum( (d .- p[1]) .^ 2 ./ dx .^2 )
 
-# The result of an uncorrelated fit to a 
+# The result of an uncorrelated fit to a
 # constant is the weighted average
 xp = [sum(value.(dt) ./ dx)/sum(1.0 ./ dx)]
 
@@ -153,10 +199,11 @@ println("chi^2 / chi_exp^2: ", chisq(xp, value.(dt)), " / ", chiexp(chisq, xp, d
 ```
 """
 function chiexp(chisq::Function,
-                xp::Vector{Float64}, 
+                xp::Vector{Float64},
                 data::Vector{uwreal},
                 wpm::Dict{Int64,Vector{Float64}};
-                W::Union{Vector{Float64},Array{Float64,2}} = Vector{Float64}())
+                W::Union{Vector{Float64},Array{Float64,2}} = Vector{Float64}(),
+                C::Union{Matrix{Float64},Nothing} = nothing)
 
     n = length(xp)   # Number of fit parameters
     m = length(data) # Number of data
@@ -168,19 +215,19 @@ function chiexp(chisq::Function,
     for i in n+1:n+m
         xav[i] = data[i-n].mean
     end
-    ccsq(x::Vector) = chisq(view(x, 1:n), view(x, n+1:n+m)) 
+    ccsq(x::Vector) = chisq(view(x, 1:n), view(x, n+1:n+m))
     if (n+m < 4)
         cfg = ForwardDiff.HessianConfig(ccsq, xav, Chunk{1}());
     else
         cfg = ForwardDiff.HessianConfig(ccsq, xav, Chunk{4}());
     end
-        
+
     hess = Array{Float64}(undef, n+m, n+m)
     ForwardDiff.hessian!(hess, ccsq, xav, cfg)
-        
+
     cse = 0.0
     if (m-n > 0)
-        if (length(W) == 0)
+        if (length(W) == 0) 
             Ww = zeros(Float64, m)
             for i in 1:m
                 if (data[i].err == 0.0)
@@ -192,27 +239,26 @@ function chiexp(chisq::Function,
                 Ww[i] = 1.0 / data[i].err^2
             end
         else
-            Ww = W
+            Ww=W
         end
-
-        cse = chiexp(hess, data, Ww, wpm)
+        cse = isnothing(C) ?  chiexp(hess, data, Ww, wpm) : chiexp(hess,data,Ww,C,wpm)
     end
 
     return cse
 end
 chiexp(chisq::Function,
-       xp::Vector{Float64}, 
+       xp::Vector{Float64},
        data::Vector{uwreal};
-       W::Union{Vector{Float64},Array{Float64,2}} = Vector{Float64}()) = 
-           chiexp(chisq, xp, data, Dict{Int64,Vector{Float64}}(), W=W)
+       W::Union{Vector{Float64},Array{Float64,2}} = Vector{Float64}(),
+       C::Union{Vector{Float64},Array{Float64,2},Nothing}=nothing) =
+           chiexp(chisq, xp, data, Dict{Int64,Vector{Float64}}(), W=W,C=C)
 chiexp(chisq::Function,
-       xp::Vector{Float64}, 
+       xp::Vector{Float64},
        data::Vector{uwreal},
        wpm::Dict{String,Vector{Float64}};
-       W::Union{Vector{Float64},Array{Float64,2}} = Vector{Float64}()) = 
-           chiexp(chisq, xp, data, dict_name_to_id(wpm), W=W)
-
-
+       W::Union{Vector{Float64},Array{Float64,2}} = Vector{Float64}(),
+       C::Union{Vector{Float64},Array{Float64,2},Nothing} =nothing) =
+           chiexp(chisq, xp, data, dict_name_to_id(wpm), W=W, C=C)
 
 @doc raw"""
 
@@ -281,7 +327,8 @@ function fit_error(chisq::Function,
                    data::Vector{uwreal},
                    wpm::Dict{Int64,Vector{Float64}},
                    W::Vector{Float64} = Vector{Float64}(),
-                   chi_exp::Bool = true)
+                   chi_exp::Bool = true,
+                   C=nothing)
 
     n = length(xp)   # Number of fit parameters
     m = length(data) # Number of data
@@ -332,7 +379,7 @@ function fit_error(chisq::Function,
             Ww = W
         end
         
-        cse = chiexp(hess, data, Ww, wpm)
+        cse = isnothing(C) ?  chiexp(hess, data, Ww, wpm) : chiexp(hess,data,Ww,C,wpm)
     end
 
     return param, cse
@@ -343,7 +390,8 @@ function fit_error(chisq::Function,
                    data::Vector{uwreal},
                    wpm::Dict{Int64,Vector{Float64}},
                    W::Array{Float64, 2},
-                   chi_exp::Bool = true)
+                   chi_exp::Bool = true,
+                   C = nothing)
 
     n = length(xp)   # Number of fit parameters
     m = length(data) # Number of data
@@ -379,7 +427,7 @@ function fit_error(chisq::Function,
     
     cse = 0.0
     if (m-n > 0)
-        cse = chiexp(hess, data, W, wpm)
+        cse = isnothing(C) ?  chiexp(hess, data, W, wpm) : chiexp(hess,data,W,C,wpm)
     end
 
     return param, cse
@@ -388,19 +436,19 @@ end
 fit_error(chisq::Function,
           xp::Vector{Float64}, 
           data::Vector{uwreal};
-          W::Union{Vector{Float64}, Array{Float64,2}} = Vector{Float64}(),
-          chi_exp::Bool = true) = 
-              fit_error(chisq, xp, data, Dict{Int64,Vector{Float64}}(), W, chi_exp)
+          W::VecOrMat{Float64} = Vector{Float64}(),
+          chi_exp::Bool = true,C=nothing) = 
+              fit_error(chisq, xp, data, Dict{Int64,Vector{Float64}}(), W, chi_exp,C)
 fit_error(chisq::Function,
           xp::Vector{Float64}, 
           data::Vector{uwreal},
           wpm::Dict{String,Vector{Float64}};
-          W::Union{Vector{Float64}, Array{Float64,2}} = Vector{Float64}(),
-          chi_exp::Bool = true) = 
-              fit_error(chisq, xp, data, dict_name_to_id(wpm), W, chi_exp)
+          W::AbstractVecOrMat{Float64} = Vector{Float64}(),
+          chi_exp::Bool = true,C=nothing) = 
+              fit_error(chisq, xp, data, dict_name_to_id(wpm), W, chi_exp,C)
 
 @doc raw"""
-    int_error(fint::Function, a, b, p::Vector{uwreal})
+    int_error(fint::Function, a, b, p::AbstractVector{uwreal})
 
 Computes the integral
 
