@@ -2,6 +2,7 @@
 
 # Start test script
 using ADerrors
+using Random
 using Test
 
 println("Test [test1.jl]")

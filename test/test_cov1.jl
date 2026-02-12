@@ -20,3 +20,5 @@ sint = 2.0*exp(-int_error(fint, g1, g2, p))
 uwerr(sint)
 print("  From integral evaluation: ")
 details(sint)
+
+(0 == 0)

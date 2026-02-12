@@ -9,6 +9,7 @@ mat = ADerrors.cov(x)
 println("Covariance: ", mat[1,1], " ", mat[1,2])
 println("            ", mat[2,1], " ", mat[2,2])
 println("Check (should be zero): ",  mat[1,1] - mat[2,2])
-println("Check (should be zero): ",  mat[1,2] - (err(a)^2-err(b)^2))
-( abs(mat[1,1] - mat[2,2]) < 1.0E-10) && ( abs(mat[1,2] - (err(a)^2-err(b)^2)) < 1.0E-10 )
+println("Check (should be zero): ",  mat[1,2] - (ADerrors.err(a)^2-ADerrors.err(b)^2))
+( abs(mat[1,1] - mat[2,2]) < 1.0E-10) &&
+( abs(mat[1,2] - (ADerrors.err(a)^2-ADerrors.err(b)^2)) < 1.0E-10 )
 

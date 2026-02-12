@@ -1,8 +1,9 @@
-using ADerrors, Plots
+using ADerrors, Plots, Random
 pgfplotsx();
 
 # Generate some correlated data
-eta  = randn(10000);
+rng = Random.MersenneTwister(1234)
+eta  = randn(rng, 10000);
 x    = Vector{Float64}(undef, 10000);
 x[1] = 0.0;
 for i in 2:10000
