@@ -301,7 +301,7 @@ function uwerror(a::uwreal, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                         a.cfd[j].var = a.cfd[j].var + a.der[i]*ws.fluc[i].delta[1]
                     else
                         @inbounds for k in 1:nrep
-                            ftemp[k] = ftemp[k] + a.der[i]*ws.fluc[i].fourier[k]
+                            @. ftemp[k] += a.der[i]*ws.fluc[i].fourier[k]
                         end
                     end
                 end
@@ -536,7 +536,7 @@ function cov(a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                         v1 = v1 + a[k1].der[i]*ws.fluc[i].delta[1]
                     else
                         for k in 1:nrep
-                            ftemp1[k] = ftemp1[k] + a[k1].der[i]*ws.fluc[i].fourier[k]
+                            @. ftemp1[k] += a[k1].der[i]*ws.fluc[i].fourier[k]
                         end
                     end
                 end
@@ -549,7 +549,7 @@ function cov(a::Vector{uwreal}, ws::wspace, wpm::Dict{Int64,Vector{Float64}})
                             v2 = v2 + a[k2].der[i]*ws.fluc[i].delta[1]
                         else
                             for k in 1:nrep
-                                ftemp2[k] = ftemp2[k] + a[k2].der[i]*ws.fluc[i].fourier[k]
+                                @. ftemp2[k] += a[k2].der[i]*ws.fluc[i].fourier[k]
                             end
                         end
                     end
