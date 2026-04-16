@@ -38,5 +38,6 @@ export cov, trcov, trcorr, neid, derivative
 export read_uwreal, write_uwreal
 export addobs, cobs
 export root_error, chiexp, fit_error, int_error
+export clean!
 
 end # module

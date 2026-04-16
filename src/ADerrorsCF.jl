@@ -722,6 +722,37 @@ err(a::uwreal, str::String) = err(a, get_id_from_name(str))
 
 empt = Dict{Int64,Vector{Float64}}()
 
+"""
+    clean!(; force_gc::Bool=false)
+
+Reset internal global state used by `ADerrors` (`wsg`) and optionally run garbage
+collection.
+
+After calling this function, previously created `uwreal` observables that depend on
+the old global workspace are invalid for further error analysis.
+"""
+function clean!(; force_gc::Bool=false)
+    empty!(wsg.fluc)
+    wsg.nob = 0
+
+    empty!(wsg.map_nob)
+    empty!(wsg.map_ids)
+
+    empty!(wsg.id2str)
+    empty!(wsg.str2id)
+    empty!(wsg.repnam)
+    empty!(wsg.repidc)
+
+    wsg.newid = -12345
+    empty!(empt)
+
+    if force_gc
+        GC.gc()
+    end
+
+    return nothing
+end
+
 function dict_name_to_id(wpm::Dict{String, Vector{Float64}})
     wp = Dict{Int64, Vector{Float64}}()
     for i in keys(wpm)
